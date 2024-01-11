@@ -1,0 +1,22 @@
+# See: https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[package]
+name = "infernal"
+version = "0.0.0"
+authors = ["Haltia.AI <support@haltia.ai>"]
+edition = "2021"
+rust-version = "1.70"
+description = "Infernal.rs"
+documentation = "https://github.com/HaltiaAI/infernal.rs/blob/master/README.md"
+readme = true
+homepage = "https://haltia.ai"
+repository = "https://github.com/HaltiaAI/infernal.rs"
+license = "Unlicense"
+keywords = []
+categories = []
+publish = true
+
+[features]
+default = []
+
+[dependencies]
