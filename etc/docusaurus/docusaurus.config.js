@@ -119,7 +119,7 @@ const config = {
               },
               {
                 label: 'Learn',
-                to: '/learn/',
+                to: '/concepts',
               },
               {
                 label: 'API',
