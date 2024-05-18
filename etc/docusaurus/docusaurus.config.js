@@ -5,23 +5,25 @@
 // See: https://docusaurus.io/docs/api/docusaurus-config
 
 import {themes as prismThemes} from 'prism-react-renderer';
+import remarkDefList from 'remark-deflist';
+import tabBlocks from "docusaurus-remark-plugin-tab-blocks";
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
-  title: 'My Site',
-  tagline: 'Dinosaurs are cool',
+  title: 'Infernal',
+  tagline: 'Production-quality edge inference',
   favicon: 'img/favicon.ico',
 
   // Set the production url of your site here
-  url: 'https://your-docusaurus-site.example.com',
+  url: 'https://infernal.rs',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'facebook', // Usually your GitHub org/user name.
-  projectName: 'docusaurus', // Usually your repo name.
+  organizationName: 'HaltiaAI', // Usually your GitHub org/user name.
+  projectName: 'infernal.rs', // Usually your repo name.
 
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
@@ -40,19 +42,18 @@ const config = {
       /** @type {import('@docusaurus/preset-classic').Options} */
       ({
         docs: {
+          routeBasePath: '/', // Serve the docs at the site's root
           sidebarPath: './sidebars.js',
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
           editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
+            'https://github.com/HaltiaAI/infernal.rs/tree/master/packages/create-docusaurus/templates/shared/',
+          remarkPlugins: [remarkDefList, [tabBlocks, {
+            labels: [
+              ["bash", "CLI"],
+              ["shell-session", "Shell"],
+            ],
+          }]],
         },
-        blog: {
-          showReadingTime: true,
-          // Please change this to your repo.
-          // Remove this to remove the "edit this page" links.
-          editUrl:
-            'https://github.com/facebook/docusaurus/tree/main/packages/create-docusaurus/templates/shared/',
-        },
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -63,24 +64,40 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
-      // Replace with your project's social card
-      image: 'img/docusaurus-social-card.jpg',
+      image: 'img/docusaurus-social-card.jpg', // TODO
       navbar: {
-        title: 'My Site',
+        title: 'Infernal',
         logo: {
-          alt: 'My Site Logo',
+          alt: 'Infernal Logo', // TODO
           src: 'img/logo.svg',
         },
         items: [
           {
             type: 'docSidebar',
-            sidebarId: 'tutorialSidebar',
+            sidebarId: 'home',
+            label: 'Overview',
             position: 'left',
-            label: 'Tutorial',
           },
-          {to: '/blog', label: 'Blog', position: 'left'},
           {
-            href: 'https://github.com/facebook/docusaurus',
+            type: 'docSidebar',
+            sidebarId: 'install',
+            label: 'Install',
+            position: 'left',
+          },
+          {
+            type: 'docSidebar',
+            sidebarId: 'learn',
+            label: 'Learn',
+            position: 'left',
+          },
+          {
+            type: 'docSidebar',
+            sidebarId: 'api',
+            label: 'API',
+            position: 'left',
+          },
+          {
+            href: 'https://github.com/HaltiaAI/infernal.rs',
             label: 'GitHub',
             position: 'right',
           },
@@ -93,8 +110,20 @@ const config = {
             title: 'Docs',
             items: [
               {
-                label: 'Tutorial',
-                to: '/docs/intro',
+                label: 'Overview',
+                to: '/',
+              },
+              {
+                label: 'Install',
+                to: '/install',
+              },
+              {
+                label: 'Learn',
+                to: '/learn/',
+              },
+              {
+                label: 'API',
+                to: '/api/',
               },
             ],
           },
@@ -103,15 +132,11 @@ const config = {
             items: [
               {
                 label: 'Stack Overflow',
-                href: 'https://stackoverflow.com/questions/tagged/docusaurus',
-              },
-              {
-                label: 'Discord',
-                href: 'https://discordapp.com/invite/docusaurus',
+                href: 'https://stackoverflow.com/questions/tagged/infernal',
               },
               {
                 label: 'Twitter',
-                href: 'https://twitter.com/docusaurus',
+                href: 'https://twitter.com/HaltiaEngineers',
               },
             ],
           },
@@ -119,23 +144,34 @@ const config = {
             title: 'More',
             items: [
               {
-                label: 'Blog',
-                to: '/blog',
-              },
-              {
                 label: 'GitHub',
-                href: 'https://github.com/facebook/docusaurus',
+                href: 'https://github.com/HaltiaAI/infernal.rs',
               },
             ],
           },
         ],
-        copyright: `Copyright © ${new Date().getFullYear()} My Project, Inc. Built with Docusaurus.`,
+        copyright: `Copyright © 2023 Haltia, Inc.`,
       },
       prism: {
         theme: prismThemes.github,
         darkTheme: prismThemes.dracula,
+        defaultLanguage: 'shell-session',
+        additionalLanguages: ['bash', 'json', 'python', 'rust', 'shell-session'],
       },
     }),
+  plugins: [
+    () => ({
+      name: 'symlink-resolver',
+      configureWebpack() {
+        return { resolve: { symlinks: false } };
+      },
+    }),
+    ['@grnet/docusaurus-terminology', {
+      termsDir: './docs/glossary',
+      docsDir: './docs/',
+      glossaryFilepath: './docs/glossary.md'
+    }],
+  ]
 };
 
 export default config;
