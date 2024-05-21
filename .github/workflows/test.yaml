@@ -1,0 +1,31 @@
+# See: https://doc.rust-lang.org/cargo/guide/continuous-integration.html
+# See: https://github.com/actions/starter-workflows/blob/main/ci/rust.yml
+
+name: Rust
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain:
+          - stable
+          - beta
+          - nightly
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the Rust toolchain
+        run: rustup update ${{ matrix.toolchain }} && rustup default ${{ matrix.toolchain }}
+      - name: Build the project
+        run: cargo build --verbose
+      - name: Run the test suite
+        run: cargo test --verbose
