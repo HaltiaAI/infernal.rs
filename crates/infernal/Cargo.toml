@@ -1,0 +1,49 @@
+[package]
+name = "infernal"
+version = "0.0.1"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "ML framework for inferencing"
+documentation.workspace = true
+readme.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish.workspace = true
+
+[dependencies]
+cfg-if.workspace = true
+gguf.workspace = true
+libc.workspace = true
+memmap2.workspace = true
+metal.workspace = true
+objc.workspace = true
+smallvec.workspace = true
+strum.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+# graph-inspect: TODO remove
+blake3 = { version = "1.5", features = ["serde"] }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[dev-dependencies]
+anyhow.workspace = true
+criterion.workspace = true
+# ggml = { path = "../ggml", features = ["metal"] } # TODO
+tracing-subscriber.workspace = true
+dirs.workspace = true
+# llama-cpp-sys.workspace = true TODO
+
+[[bench]]
+name = "matmul"
+harness = false
+
+[features]
+# TODO: move this out
+default = ["graph-inspect"]
+graph-inspect = ["serde", "serde_json"]
