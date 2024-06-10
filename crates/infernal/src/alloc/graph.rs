@@ -709,7 +709,7 @@ mod tests {
         // input tensors and the operations reuse these tensors.
         // One of the initial input nodes gets deallocated, however this is typically not how a real
         // world scenario would look because the input nodes are usually weights.
-        assert_eq!(alloc_size, align(tb[a].size()) * 3);
+        assert_eq!(alloc_size, align(tb[a].size() * 3));
     }
 
     #[test]
