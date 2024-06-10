@@ -742,9 +742,9 @@ mod tests {
 
         println!("tensor_size={} alloc_size={alloc_size}", tb[a0].size());
 
-        /// Similar to the above, all operations are able to use their inputs. Although both
-        /// b input tensors get deallocated, they are at the start of the graph so the allocation
-        /// size does not change.
+        // Similar to the above, all operations are able to use their inputs. Although both
+        // b input tensors get deallocated, they are at the start of the graph so the allocation
+        // size does not change.
         assert_eq!(alloc_size, align(tb[a0].size()) * 4);
     }
 

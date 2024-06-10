@@ -905,7 +905,7 @@ mod tests {
                 actual, expected, ..
             } = &mut self.cmp
             {
-                actual.info.name = f(&expected.name).into();
+                actual.info.name = f(&expected.name);
                 if !self.differs {
                     self.differs = actual.name != expected.name;
                 }
