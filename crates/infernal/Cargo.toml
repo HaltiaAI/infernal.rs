@@ -1,10 +1,10 @@
 [package]
 name = "infernal"
 version = "0.0.1"
+description = "ML framework for inferencing"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-description = "ML framework for inferencing"
 documentation.workspace = true
 readme.workspace = true
 homepage.workspace = true

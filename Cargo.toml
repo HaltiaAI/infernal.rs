@@ -4,6 +4,7 @@
 members = [
   "crates/*"
 ]
+resolver = "2"
 
 [workspace.package]
 authors = ["Haltia.AI"]
@@ -24,11 +25,11 @@ bytes = "1.5.0"
 cfg-if = "1.0.0"
 criterion = "0.5"
 byteorder = "1"
-darwin = { path = "lib/darwin" }
 reqwest = { version = "0.11.24", features = ["json"] }
 dirs = "5.0.1"
 # ggml = { path = "crates/ggml", features = ["metal"]}
 gguf = { path = "crates/gguf" }
+llama_cpp_sys = { path = "crates/llama_cpp_sys"}
 libc = "0.2"
 metal = "0.27.0"
 memmap2 = "0.8.0"
