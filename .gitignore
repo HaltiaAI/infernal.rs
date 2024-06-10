@@ -17,3 +17,9 @@
 /Cargo.lock
 /rust-toolchain
 /target
+
+
+# Flamegraphs, compute graphs and other debug artifacts
+*.svg
+*.mp
+*.json
