@@ -27,7 +27,7 @@ criterion = "0.5"
 byteorder = "1"
 reqwest = { version = "0.11.24", features = ["json"] }
 dirs = "5.0.1"
-# ggml = { path = "crates/ggml", features = ["metal"]}
+ggml = { path = "crates/ggml" }
 gguf = { path = "crates/gguf" }
 llama_cpp_sys = { path = "crates/llama_cpp_sys"}
 libc = "0.2"

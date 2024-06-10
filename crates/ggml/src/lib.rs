@@ -6,7 +6,7 @@ use crate::buffer::PageAlignedBuf;
 
 pub use crate::{
     alloc::Allocator,
-    backend::{Backend, BufferError},
+    backend::*,
     cgraph::ComputeGraph,
     context::{Context, ManagedContext, MmapContext, PageAlignedContext},
     tensor::Tensor,

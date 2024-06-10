@@ -26,7 +26,7 @@ strum.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
-# graph-inspect: TODO remove
+# graph-inspect
 blake3 = { version = "1.5", features = ["serde"] }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
@@ -34,10 +34,10 @@ serde_json = { workspace = true, optional = true }
 [dev-dependencies]
 anyhow.workspace = true
 criterion.workspace = true
-# ggml = { path = "../ggml", features = ["metal"] } # TODO
+ggml = { workspace = true, features = ["metal"] }
 tracing-subscriber.workspace = true
 dirs.workspace = true
-# llama-cpp-sys.workspace = true TODO
+llama_cpp_sys.workspace = true
 
 [[bench]]
 name = "matmul"
