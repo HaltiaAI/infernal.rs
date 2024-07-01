@@ -1,22 +1,22 @@
 use std::{
     borrow::Cow,
-    cell::{self, RefCell},
+    sync::{Arc, MutexGuard, Mutex},
     fs::File,
     io::{Read, Seek, SeekFrom},
     ops::Deref,
-    rc::Rc,
 };
 
 use memmap2::Mmap;
 use thiserror::Error;
 use tracing::trace;
 
-use crate::{buf::Buf, BufId, ComputeGraph, Optimizer, Tensor, TensorSrc};
+use crate::{buf::Buf, BufId, ComputeGraph, Optimizer, Tensor, TensorSrc, TensorNotFound};
 
-pub use metal::{ComputeError, Config, Metal};
+pub use metal::{Config, Metal};
 
 mod metal;
 mod paging;
+mod cpu;
 
 pub trait Backend {
     fn add_buf(&mut self, buf: BackendBuf) -> Result<(), MemoryLimitTooLow>;
@@ -72,6 +72,22 @@ impl DanglingTensor {
 #[error("{0} device not found")]
 pub struct DeviceNotFound(&'static str);
 
+#[derive(Debug, Error)]
+pub enum ComputeError {
+    #[error(transparent)]
+    DanglingTensor(#[from] DanglingTensor),
+    #[error(transparent)]
+    TensorNotFound(#[from] TensorNotFound),
+    #[error("graph does not have an execution plan for {0} byte memory limit")]
+    MissingExecutionPlan(usize),
+    #[error("graph execution plan is empty, cannot execute")]
+    EmptyExecutionPlan,
+    #[error(transparent)]
+    MemoryLimitTooLow(#[from] MemoryLimitTooLow),
+    #[error("error paging buffer in/out: {0}")]
+    Paging(#[from] std::io::Error),
+}
+
 #[doc(hidden)]
 pub trait IntoBackendBufs {
     type Data: Into<BackendData>;
@@ -86,19 +102,17 @@ pub struct BackendBuf {
     data: BackendData,
 }
 
-#[doc(hidden)]
 pub enum BackendData {
     Mmap(Mmap),
-    Owned(Buf),
-    Shared(Rc<RefCell<Buf>>),
+    Shared(Arc<Mutex<Buf>>),
     Paged(PagedBuf),
     PagedMmap(PagedMmap),
 }
 
-impl From<Rc<RefCell<Buf>>> for BackendBuf {
+impl From<Arc<Mutex<Buf>>> for BackendBuf {
     #[inline(always)]
-    fn from(buf: Rc<RefCell<Buf>>) -> Self {
-        let id = BufId::from_addr(&buf.borrow());
+    fn from(buf: Arc<Mutex<Buf>>) -> Self {
+        let id = BufId::from_addr(&buf.lock().unwrap());
         Self {
             id,
             name: String::new().into(),
@@ -137,8 +151,7 @@ impl BackendBuf {
         use BackendData::*;
         match &self.data {
             Mmap(buf) => buf.len(),
-            Owned(buf) => buf.len(),
-            Shared(buf) => RefCell::borrow(buf).len(),
+            Shared(buf) => buf.lock().unwrap().len(),
             Paged(page) => page.size,
             PagedMmap(page) => page.size,
         }
@@ -152,15 +165,11 @@ impl BackendBuf {
                 id: self.id,
                 inner: BufRefInner::Slice(buf),
             },
-            Owned(buf) => BufRef {
-                id: self.id,
-                inner: BufRefInner::Slice(buf),
-            },
             Shared(buf) => BufRef {
                 id: self.id,
                 // TODO: return errors here
                 inner: BufRefInner::Rc(
-                    buf.try_borrow()
+                    buf.lock()
                         .expect("backend cannot mutate buffer while it's being read"),
                 ),
             },
@@ -184,7 +193,7 @@ impl BackendBuf {
     }
 
     #[inline(always)]
-    pub fn as_shared(&self) -> Option<&Rc<RefCell<Buf>>> {
+    pub fn as_shared(&self) -> Option<&Arc<Mutex<Buf>>> {
         match &self.data {
             BackendData::Shared(buf) => Some(buf),
             _ => None,
@@ -251,7 +260,7 @@ pub struct BufRef<'a> {
 
 enum BufRefInner<'a> {
     Slice(&'a [u8]),
-    Rc(cell::Ref<'a, Buf>),
+    Rc(MutexGuard<'a, Buf>),
 }
 
 impl BufRef<'_> {
@@ -303,12 +312,12 @@ impl From<Mmap> for BackendData {
 impl From<Buf> for BackendData {
     #[inline(always)]
     fn from(buf: Buf) -> Self {
-        Self::Owned(buf)
+        Self::Shared(Arc::new(Mutex::new(buf)))
     }
 }
-impl From<Rc<RefCell<Buf>>> for BackendData {
+impl From<Arc<Mutex<Buf>>> for BackendData {
     #[inline(always)]
-    fn from(buf: Rc<RefCell<Buf>>) -> Self {
+    fn from(buf: Arc<Mutex<Buf>>) -> Self {
         Self::Shared(buf)
     }
 }

@@ -210,6 +210,9 @@ impl DerefMut for Buf {
     }
 }
 
+unsafe impl Send for Buf {}
+unsafe impl Sync for Buf {}
+
 // #[test]
 // fn alignment_matches_ggml() {
 //     const ALIGNMENT: usize = 32;

@@ -15,7 +15,7 @@ use crate::{
     backend::{
         metal::kernel::Kernel,
         paging::{self, PageCache},
-        Backend, BackendBuf, DanglingTensor, DeviceNotFound, MemoryLimitTooLow,
+        Backend, BackendBuf, DanglingTensor, DeviceNotFound, MemoryLimitTooLow, ComputeError
     },
     buf::BufId,
     graph::{ComputeGraph, Optimizer},
@@ -450,14 +450,15 @@ impl paging::Device for Device {
         }
     }
 
-    fn new_buf(&self, buf: &[u8]) -> std::io::Result<Self::Buf> {
-        let aligned_size = self.align(buf.len());
+    fn new_buf(&self, buf: &BackendBuf) -> std::io::Result<Self::Buf> {
+        let bufref = buf.borrow();
+        let aligned_size = self.align(bufref.len());
 
         // SAFETY:
         // Since we have ownership of the original storage and we only deallocate at the end of this
         // type's lifetime, giving out a pointer to it to Metal is safe.
         let mtl_buf = self.new_buffer_with_bytes_no_copy(
-            buf.as_ptr() as _,
+            bufref.as_ptr() as _,
             aligned_size as u64,
             MTLResourceOptions::StorageModeShared,
             None,
@@ -480,22 +481,6 @@ impl paging::Device for Device {
         debug_assert!(aligned_size % page_size == 0);
         aligned_size
     }
-}
-
-#[derive(Debug, Error)]
-pub enum ComputeError {
-    #[error(transparent)]
-    DanglingTensor(#[from] DanglingTensor),
-    #[error(transparent)]
-    TensorNotFound(#[from] TensorNotFound),
-    #[error("graph does not have an execution plan for {0} byte memory limit")]
-    MissingExecutionPlan(usize),
-    #[error("graph execution plan is empty, cannot execute")]
-    EmptyExecutionPlan,
-    #[error(transparent)]
-    MemoryLimitTooLow(#[from] MemoryLimitTooLow),
-    #[error("error paging buffer in/out: {0}")]
-    Paging(#[from] std::io::Error),
 }
 
 /// Helper type for encoding and executing Metal commands.

@@ -17,7 +17,7 @@ pub(crate) trait Device {
     type Buf;
 
     fn info(&self) -> DeviceInfo;
-    fn new_buf(&self, buf: &[u8]) -> std::io::Result<Self::Buf>;
+    fn new_buf(&self, buf: &BackendBuf) -> std::io::Result<Self::Buf>;
     fn free_buf(&self, buf: Self::Buf) -> std::io::Result<()>;
 
     fn has_noncopy_bufs(&self) -> bool {
@@ -451,8 +451,7 @@ impl<D: Device> Page<D> {
                 self.buf.status() == BufStatus::Loaded,
                 "buffer cannot be loaded into VRAM if not in RAM"
             );
-            let buf = self.buf.borrow();
-            self.device_buf = Some(device.new_buf(&buf)?);
+            self.device_buf = Some(device.new_buf(&self.buf)?);
             debug!(name = %self.buf.name, id = %self.buf.id, size = %Bytes(size), "created GPU buffer");
             Ok(size)
         } else {
