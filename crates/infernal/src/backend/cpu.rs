@@ -22,6 +22,32 @@ pub struct CpuBackend {
 }
 
 impl CpuBackend {
+    fn borrow2(&self, 
+        ctx: &impl TensorSrc,
+        t0: &Tensor, 
+        t1: &Tensor
+    ) -> Result<(&[u8], &mut [u8]), ComputeError> {
+        let [buf_a, buf_dst] = self.page_cache.get2(t0, t1)?;
+
+        let a = unsafe {
+            let offset = t0.data_offs();
+            let size = t0.size();
+            let view = &buf_a.borrow()[offset..offset + size];
+
+            &*(view as *const _)
+        };
+
+        let dst = unsafe {
+            let offset = t1.data_offs();
+            let size = t1.size();
+            let view = &mut buf_dst.as_shared_mut().expect("Data might not be mapped in")[offset..offset + size];
+
+            &mut *(view as *mut _)
+        };
+
+        Ok((a, dst))
+    }
+
     fn dispatch_op<'scope, 'env, 'this: 'scope>(
         &'this self,
         ctx: &impl TensorSrc,
@@ -31,7 +57,7 @@ impl CpuBackend {
             Op::Const => return Ok(()),
             Op::Unary { op, a } => {
                 let a = ctx.get_tensor(a)?;
-                let [buf_a, buf_dst] = self.page_cache.get2(a, dst)?;
+                let (buf_a, buf_dst) = self.borrow2(ctx, a, dst)?;
 
                 match op {
                     _ => todo!(),

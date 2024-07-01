@@ -105,15 +105,15 @@ pub struct BackendBuf {
 
 pub enum BackendData {
     Mmap(RefCell<Mmap>),
-    Shared(Arc<Mutex<Buf>>),
+    Shared(RefCell<Buf>),
     Paged(RefCell<PagedBuf>),
     PagedMmap(RefCell<PagedMmap>),
 }
 
-impl From<Arc<Mutex<Buf>>> for BackendBuf {
+impl From<RefCell<Buf>> for BackendBuf {
     #[inline(always)]
-    fn from(buf: Arc<Mutex<Buf>>) -> Self {
-        let id = BufId::from_addr(&buf.lock().unwrap());
+    fn from(buf: RefCell<Buf>) -> Self {
+        let id = BufId::from_addr(&buf.borrow());
         Self {
             id,
             name: String::new().into(),
@@ -152,7 +152,7 @@ impl BackendBuf {
         use BackendData::*;
         match &self.data {
             Mmap(buf) => buf.borrow().len(),
-            Shared(buf) => buf.lock().unwrap().len(),
+            Shared(buf) => buf.borrow().len(),
             Paged(page) => page.borrow().size,
             PagedMmap(page) => page.borrow().size,
         }
@@ -170,8 +170,7 @@ impl BackendBuf {
                 id: self.id,
                 // TODO: return errors here
                 inner: BufRefInner::Rc(
-                    buf.lock()
-                        .expect("backend cannot mutate buffer while it's being read"),
+                    buf.borrow()
                 ),
             },
             Paged(buf) => BufRef {
@@ -194,9 +193,16 @@ impl BackendBuf {
     }
 
     #[inline(always)]
-    pub fn as_shared(&self) -> Option<&Arc<Mutex<Buf>>> {
+    pub fn as_shared(&self) -> Option<cell::Ref<'_, Buf>> {
         match &self.data {
-            BackendData::Shared(buf) => Some(buf),
+            BackendData::Shared(buf) => Some(buf.borrow()),
+            _ => None,
+        }
+    }
+
+    pub fn as_shared_mut(&self) -> Option<cell::RefMut<'_, Buf>> {
+        match &self.data {
+            BackendData::Shared(buf) => Some(buf.borrow_mut()),
             _ => None,
         }
     }
@@ -261,7 +267,7 @@ pub struct BufRef<'a> {
 
 enum BufRefInner<'a> {
     Slice(&'a [u8]),
-    Rc(MutexGuard<'a, Buf>),
+    Rc(cell::Ref<'a, Buf>),
     RefMmap(cell::Ref<'a, Mmap>),
     RefPaged(cell::Ref<'a, PagedBuf>),
     RefPagedMmap(cell::Ref<'a, PagedMmap>),
@@ -329,12 +335,12 @@ impl From<Mmap> for BackendData {
 impl From<Buf> for BackendData {
     #[inline(always)]
     fn from(buf: Buf) -> Self {
-        Self::Shared(Arc::new(Mutex::new(buf)))
+        Self::Shared(RefCell::new(buf))
     }
 }
-impl From<Arc<Mutex<Buf>>> for BackendData {
+impl From<RefCell<Buf>> for BackendData {
     #[inline(always)]
-    fn from(buf: Arc<Mutex<Buf>>) -> Self {
+    fn from(buf: RefCell<Buf>) -> Self {
         Self::Shared(buf)
     }
 }
