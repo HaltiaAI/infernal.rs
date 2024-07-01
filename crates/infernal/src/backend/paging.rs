@@ -1,4 +1,4 @@
-use std::{collections::HashSet, time::Instant};
+use std::{collections::HashSet, time::Instant, sync::Arc};
 
 use tracing::{debug, info, trace, warn};
 
@@ -17,7 +17,7 @@ pub(crate) trait Device {
     type Buf;
 
     fn info(&self) -> DeviceInfo;
-    fn new_buf(&self, buf: &BackendBuf) -> std::io::Result<Self::Buf>;
+    fn new_buf(&self, buf: &Arc<BackendBuf>) -> std::io::Result<Self::Buf>;
     fn free_buf(&self, buf: Self::Buf) -> std::io::Result<()>;
 
     fn has_noncopy_bufs(&self) -> bool {
@@ -170,7 +170,7 @@ impl<D: Device> PageCache<D> {
     }
 
     pub fn get(&self, id: BufId) -> Option<&BackendBuf> {
-        self.get_page(id).map(|page| &page.buf)
+        self.get_page(id).map(|page| page.buf.as_ref())
     }
 
     fn get_page(&self, id: BufId) -> Option<&Page<D>> {
@@ -401,14 +401,14 @@ impl<D: Device> PageCache<D> {
 const UNPAGED_BUG_MSG: &str = "Backend buffer not paged in. This is a bug, please report.";
 
 struct Page<D: Device> {
-    buf: BackendBuf,
+    buf: Arc<BackendBuf>,
     device_buf: Option<D::Buf>,
 }
 
 impl<D: Device> Page<D> {
     fn new(buf: BackendBuf) -> Self {
         Self {
-            buf,
+            buf: Arc::new(buf),
             device_buf: None,
         }
     }

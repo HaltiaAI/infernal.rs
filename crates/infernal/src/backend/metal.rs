@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use std::time::Instant;
+use std::sync::Arc;
 
 use metal::{
     CommandBufferRef, CommandQueue, CompileOptions, ComputeCommandEncoderRef,
@@ -450,7 +451,7 @@ impl paging::Device for Device {
         }
     }
 
-    fn new_buf(&self, buf: &BackendBuf) -> std::io::Result<Self::Buf> {
+    fn new_buf(&self, buf: &Arc<BackendBuf>) -> std::io::Result<Self::Buf> {
         let bufref = buf.borrow();
         let aligned_size = self.align(bufref.len());
 
