@@ -3,13 +3,16 @@ use metal::{ComputePipelineState, MTLSize};
 use crate::{
     args,
     backend::{
-        metal::kernel::{Arg, Kernel, TensorBuf, UnarySrc, A},
+        metal::{
+            kernel::{Arg, Kernel, TensorBuf, UnarySrc, A},
+            Pipeline,
+        },
         Metal,
     },
 };
 
 pub(crate) struct DiagMaskInf<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a Pipeline,
     src: UnarySrc<'a>,
     dst: TensorBuf<'a>,
     n_past: usize,
@@ -39,7 +42,7 @@ impl<'a> Kernel<1> for DiagMaskInf<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &Pipeline {
         self.pipeline
     }
     fn src(&self) -> &UnarySrc<'a> {

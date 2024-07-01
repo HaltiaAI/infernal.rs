@@ -3,14 +3,17 @@ use metal::{ComputePipelineState, MTLSize};
 use crate::{
     args,
     backend::{
-        metal::kernel::{Arg, BinarySrc, Kernel, TensorBuf, A, B},
+        metal::{
+            kernel::{Arg, BinarySrc, Kernel, TensorBuf, A, B},
+            Pipeline,
+        },
         Metal,
     },
     op, unsupported_type, Type,
 };
 
 pub(crate) struct Im2Col<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a Pipeline,
     src: BinarySrc<'a>,
     dst: TensorBuf<'a>,
     args: op::Im2Col,
@@ -134,7 +137,7 @@ impl<'a> Kernel<2> for Im2Col<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &Pipeline {
         self.pipeline
     }
     fn src(&self) -> &BinarySrc<'a> {

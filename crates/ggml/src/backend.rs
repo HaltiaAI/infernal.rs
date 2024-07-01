@@ -65,18 +65,20 @@ pub trait Backend {
     fn optimize_allocator<S>(&mut self, alloc: &mut Allocator<S>) {}
 }
 
+#[allow(dead_code)]
 #[inline(always)]
 fn get_result_tensor(cg: &mut ComputeGraph) -> Tensor {
     get_output_tensor(cg, 1, "result_output")
 }
 
+#[allow(dead_code)]
 #[inline(always)]
 fn get_embd_tensor(cg: &mut crate::ComputeGraph) -> Tensor {
     get_output_tensor(cg, 2, "result_norm")
 }
 
 /// Default implementation of extracting an output.
-#[inline(always)]
+#[allow(dead_code)]
 fn get_output_tensor(cg: &mut crate::ComputeGraph, rev_idx: usize, name: &'static str) -> Tensor {
     unsafe {
         let cg = &*cg.0.as_mut_ptr();

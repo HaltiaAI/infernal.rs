@@ -1,12 +1,15 @@
-use metal::{ComputePipelineState, MTLSize};
+use metal::MTLSize;
 
 use crate::{
     args,
-    backend::metal::kernel::{Arg, BinarySrc, Kernel, TensorBuf, A, B},
+    backend::metal::{
+        kernel::{Arg, BinarySrc, Kernel, TensorBuf, A, B},
+        Pipeline,
+    },
 };
 
 pub(crate) struct BinArith<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a Pipeline,
     dst: TensorBuf<'a>,
     src: BinarySrc<'a>,
     stride: u64,
@@ -16,8 +19,8 @@ pub(crate) struct BinArith<'a> {
 
 impl<'a> BinArith<'a> {
     pub fn new(
-        pipeline: &'a ComputePipelineState,
-        pipeline_row: &'a ComputePipelineState,
+        pipeline: &'a Pipeline,
+        pipeline_row: &'a Pipeline,
         dst: TensorBuf<'a>,
         src: BinarySrc<'a>,
     ) -> Self {
@@ -69,7 +72,7 @@ impl<'a> Kernel<2> for BinArith<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &Pipeline {
         self.pipeline
     }
     fn src(&self) -> &BinarySrc<'a> {
@@ -160,6 +163,7 @@ impl<'a> Kernel<2> for BinArith<'a> {
             let [dst_cols, ..] = self.dst.tensor.dims;
             let n = self
                 .pipeline
+                .state
                 .max_total_threads_per_threadgroup()
                 .min(dst_cols as u64);
             MTLSize {

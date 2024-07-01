@@ -3,13 +3,16 @@ use metal::{ComputePipelineState, MTLSize};
 use crate::{
     args,
     backend::{
-        metal::kernel::{Arg, BinarySrc, Kernel, TensorBuf, A, B},
+        metal::{
+            kernel::{Arg, BinarySrc, Kernel, TensorBuf, A, B},
+            Pipeline,
+        },
         Metal,
     },
 };
 
 pub(crate) struct AddOld<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a Pipeline,
     dst: TensorBuf<'a>,
     src: BinarySrc<'a>,
     stride: u64,
@@ -44,7 +47,7 @@ impl<'a> Kernel<2> for AddOld<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &Pipeline {
         self.pipeline
     }
     fn src(&self) -> &BinarySrc<'a> {

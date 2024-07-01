@@ -11,7 +11,7 @@ use crate::{
 };
 
 pub(crate) struct RmsNorm<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a crate::backend::metal::Pipeline,
     src: UnarySrc<'a>,
     dst: TensorBuf<'a>,
     eps: f32,
@@ -46,7 +46,7 @@ impl<'a> Kernel<1> for RmsNorm<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &crate::backend::metal::Pipeline {
         self.pipeline
     }
     fn src(&self) -> &UnarySrc<'a> {

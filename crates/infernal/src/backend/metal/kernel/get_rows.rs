@@ -3,14 +3,17 @@ use metal::{ComputePipelineState, MTLSize};
 use crate::{
     args,
     backend::{
-        metal::kernel::{Arg, BinarySrc, Kernel, TensorBuf, A, B},
+        metal::{
+            kernel::{Arg, BinarySrc, Kernel, TensorBuf, A, B},
+            Pipeline,
+        },
         Metal,
     },
     unsupported_type, Type,
 };
 
 pub(crate) struct GetRows<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a Pipeline,
     src: BinarySrc<'a>,
     dst: TensorBuf<'a>,
 }
@@ -36,7 +39,7 @@ impl<'a> Kernel<2> for GetRows<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &Pipeline {
         self.pipeline
     }
     fn src(&self) -> &BinarySrc<'a> {

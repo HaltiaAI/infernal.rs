@@ -1,5 +1,7 @@
 use std::mem;
 
+use thiserror::Error;
+
 use crate::{g_quant, k_quant, LoadError};
 
 #[repr(u32)]
@@ -179,5 +181,135 @@ impl TensorType {
 impl std::fmt::Display for TensorType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.name())
+    }
+}
+
+/// Denotes the GGUF file type based on its most dominant tensor type.
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, strum::Display, strum::EnumString)]
+#[strum(serialize_all = "lowercase")]
+#[allow(non_camel_case_types)]
+pub enum FileType {
+    // LLAMA_FTYPE_ALL_F32              = 0,
+    AllF32 = 0,
+    // LLAMA_FTYPE_MOSTLY_F16           = 1, // except 1d tensors
+    MostlyF16 = 1,
+    // LLAMA_FTYPE_MOSTLY_Q4_0          = 2, // except 1d tensors
+    MostlyQ4_0 = 2,
+    // LLAMA_FTYPE_MOSTLY_Q4_1          = 3, // except 1d tensors
+    MostlyQ4_1 = 3,
+    // LLAMA_FTYPE_MOSTLY_Q4_1_SOME_F16 = 4, // tok_embeddings.weight and output.weight are F16
+    MostlyQ4_1SomeF16 = 4,
+    // Support removed:
+    // MostlyQ4_2 = 5,
+    // MostlyQ4_3 = 6,
+    // LLAMA_FTYPE_MOSTLY_Q8_0          = 7, // except 1d tensors
+    MostlyQ8_0 = 7,
+    // LLAMA_FTYPE_MOSTLY_Q5_0          = 8, // except 1d tensors
+    MostlyQ5_0 = 8,
+    // LLAMA_FTYPE_MOSTLY_Q5_1          = 9, // except 1d tensors
+    MostlyQ5_1 = 9,
+    // LLAMA_FTYPE_MOSTLY_Q2_K          = 10,// except 1d tensors
+    MostlyQ2_K = 10,
+    // LLAMA_FTYPE_MOSTLY_Q3_K_S        = 11,// except 1d tensors
+    MostlyQ3_K_S = 11,
+    // LLAMA_FTYPE_MOSTLY_Q3_K_M        = 12,// except 1d tensors
+    MostlyQ3_K_M = 12,
+    // LLAMA_FTYPE_MOSTLY_Q3_K_L        = 13,// except 1d tensors
+    MostlyQ3_K_L = 13,
+    // LLAMA_FTYPE_MOSTLY_Q4_K_S        = 14,// except 1d tensors
+    MostlyQ4_K_S = 14,
+    // LLAMA_FTYPE_MOSTLY_Q4_K_M        = 15,// except 1d tensors
+    MostlyQ4_K_M = 15,
+    // LLAMA_FTYPE_MOSTLY_Q5_K_S        = 16,// except 1d tensors
+    MostlyQ5_K_S = 16,
+    // LLAMA_FTYPE_MOSTLY_Q5_K_M        = 17,// except 1d tensors
+    MostlyQ5_K_M = 17,
+    // LLAMA_FTYPE_MOSTLY_Q6_K          = 18,// except 1d tensors
+    MostlyQ6_K = 18,
+}
+
+impl FileType {
+    pub fn guess_from_tensor(t: TensorType) -> Option<Self> {
+        use TensorType::*;
+        let ft = match t {
+            F32 => Self::AllF32,
+            F16 => Self::MostlyF16,
+            Q4_0 => Self::MostlyQ4_0,
+            Q4_1 => Self::MostlyQ4_1,
+            Q5_0 => Self::MostlyQ5_0,
+            Q5_1 => Self::MostlyQ5_1,
+            Q8_0 => Self::MostlyQ8_0,
+            Q2_K => Self::MostlyQ2_K,
+            Q3_K => Self::MostlyQ3_K_M,
+            Q4_K => Self::MostlyQ4_K_M,
+            Q5_K => Self::MostlyQ5_K_M,
+            Q6_K => Self::MostlyQ6_K,
+            _ => return None,
+        };
+        Some(ft)
+    }
+}
+
+#[derive(Debug, Error)]
+#[error("invalid ftype: {0}")]
+pub struct FileTypeConvError(u32);
+
+impl TryFrom<u32> for FileType {
+    type Error = FileTypeConvError;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::AllF32),
+            1 => Ok(Self::MostlyF16),
+            2 => Ok(Self::MostlyQ4_0),
+            3 => Ok(Self::MostlyQ4_1),
+            4 => Ok(Self::MostlyQ4_1SomeF16),
+            // 5 and 6 unsupported
+            7 => Ok(Self::MostlyQ8_0),
+            8 => Ok(Self::MostlyQ5_0),
+            9 => Ok(Self::MostlyQ5_1),
+            10 => Ok(Self::MostlyQ2_K),
+            11 => Ok(Self::MostlyQ3_K_S),
+            12 => Ok(Self::MostlyQ3_K_M),
+            13 => Ok(Self::MostlyQ3_K_L),
+            14 => Ok(Self::MostlyQ4_K_S),
+            15 => Ok(Self::MostlyQ4_K_M),
+            16 => Ok(Self::MostlyQ5_K_S),
+            17 => Ok(Self::MostlyQ5_K_M),
+            18 => Ok(Self::MostlyQ6_K),
+            i => Err(FileTypeConvError(i)),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TokenType {
+    Undefined = 0,
+    Normal = 1,
+    Unknown = 2,
+    Control = 3,
+    UserDefined = 4,
+    Unused = 5,
+    Byte = 6,
+}
+
+#[derive(Debug, Error)]
+#[error("unknown token type: {0}")]
+pub struct UnknownTokenType(u32);
+
+impl TryFrom<u32> for TokenType {
+    type Error = UnknownTokenType;
+    fn try_from(v: u32) -> Result<Self, Self::Error> {
+        match v {
+            0 => Ok(Self::Undefined),
+            1 => Ok(Self::Normal),
+            2 => Ok(Self::Unknown),
+            3 => Ok(Self::Control),
+            4 => Ok(Self::UserDefined),
+            5 => Ok(Self::Unused),
+            6 => Ok(Self::Byte),
+            _ => Err(UnknownTokenType(v)),
+        }
     }
 }

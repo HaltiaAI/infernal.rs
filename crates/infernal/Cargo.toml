@@ -27,7 +27,7 @@ thiserror.workspace = true
 tracing.workspace = true
 
 # graph-inspect
-blake3 = { version = "1.5", features = ["serde"] }
+blake3.workspace = true
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 
@@ -47,3 +47,5 @@ harness = false
 # TODO: move this out
 default = ["graph-inspect"]
 graph-inspect = ["serde", "serde_json"]
+# TODO
+metal = []
