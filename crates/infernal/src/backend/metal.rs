@@ -27,7 +27,7 @@ use crate::{
 
 mod kernel;
 
-pub(crate) const PROGRAM: &str = include_str!("program.metal");
+pub(crate) const PROGRAM: &str = include_str!("metal/program.metal");
 
 pub struct Metal {
     device: Device,
@@ -379,12 +379,12 @@ impl Metal {
                 use BinaryOp::*;
                 match op {
                     Matmul => {
-                        if kernel::use_mm_kernel_old(self, &src) {
+                        if kernel::use_mm_kernel(self, &src) {
                             trace!("matmul: using MM kernel");
-                            kernel::MulMMOld::new(self, dst, src).encode(encoder);
+                            kernel::MulMM::new(self, dst, src).encode(encoder);
                         } else {
                             trace!("matmul: using MV kernel");
-                            kernel::MulMVOld::new(self, dst, src).encode(encoder);
+                            kernel::MulMV::new(self, dst, src).encode(encoder);
                         }
                     }
                     Add => {
@@ -575,6 +575,11 @@ impl<'a> Drop for ExecUnit<'a> {
     }
 }
 
+struct Pipeline {
+    state: ComputePipelineState,
+    name: &'static str,
+}
+
 /// Helper macro that takes the name of a kernel and implements the Pipelines type, populating its
 /// fields with the kernel (minus the "kernel_" prefix) and a constructor to instantiate all the
 /// pipelines.
@@ -582,13 +587,16 @@ macro_rules! pipelines {
     ($($name:ident),* $(,)?) => {
         #[allow(dead_code, non_snake_case)]
         struct Pipelines {
-            $($name: ComputePipelineState),*
+            $($name: Pipeline),*
         }
 
         impl Pipelines {
             fn new(device: &Device, lib: &Library) -> Self {
                 Self {
-                    $($name: Self::load_pipeline(device, lib,  concat!("kernel_", stringify!($name)))),*
+                    $($name: Pipeline {
+                        state: Self::load_pipeline(device, lib,  concat!("kernel_", stringify!($name))),
+                        name: stringify!($name),
+                    }),*
                 }
             }
 

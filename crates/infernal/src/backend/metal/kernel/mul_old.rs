@@ -9,7 +9,7 @@ use crate::{
 };
 
 pub(crate) struct MulOld<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a crate::backend::metal::Pipeline,
     dst: TensorBuf<'a>,
     src: BinarySrc<'a>,
     stride: u64,
@@ -44,7 +44,7 @@ impl<'a> Kernel<2> for MulOld<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &crate::backend::metal::Pipeline {
         self.pipeline
     }
     fn src(&self) -> &BinarySrc<'a> {

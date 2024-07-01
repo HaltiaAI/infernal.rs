@@ -1,0 +1,30 @@
+[package]
+name = "infernal_bench"
+version = "0.0.1"
+description = "Benchmark library for Infernal"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+documentation.workspace = true
+readme.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+hex.workspace = true
+infernal.workspace = true
+infernal_llm.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[features]
+default = []
+metal = ["infernal_llm/metal", "infernal/metal"]
+# TODO
+cuda = []

@@ -9,7 +9,7 @@ use crate::{
 };
 
 pub(crate) struct Softmax<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a crate::backend::metal::Pipeline,
     src: BinarySrc<'a>,
     dst: TensorBuf<'a>,
     scale: f32,
@@ -49,7 +49,7 @@ impl<'a> Kernel<2> for Softmax<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &crate::backend::metal::Pipeline {
         self.pipeline
     }
     fn src(&self) -> &BinarySrc<'a> {

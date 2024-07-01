@@ -278,6 +278,6 @@ pub(crate) fn mmap(file: &File, offs: Option<usize>, size: Option<usize>) -> io:
     // still chance of triggering a SIGBUS when accessing pages. We attempt to avoid this by
     // mlocking the memory region but this is not a guarante AFAIK.
     let mmap = unsafe { opts.map(file) }?;
-    mmap.advise(Advice::will_need())?;
+    mmap.advise(Advice::WillNeed)?;
     Ok(mmap)
 }

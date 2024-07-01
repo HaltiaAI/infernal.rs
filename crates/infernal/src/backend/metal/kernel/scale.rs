@@ -9,7 +9,7 @@ use crate::{
 };
 
 pub(crate) struct Scale<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a crate::backend::metal::Pipeline,
     // NB: Scale is a binary operation but the second operand has already been extracted in the form
     // of scale.
     src: UnarySrc<'a>,
@@ -44,7 +44,7 @@ impl<'a> Kernel<1> for Scale<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &crate::backend::metal::Pipeline {
         self.pipeline
     }
     fn src(&self) -> &UnarySrc<'a> {

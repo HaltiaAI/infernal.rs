@@ -17,6 +17,7 @@ publish.workspace = true
 [dependencies]
 byteorder.workspace = true
 thiserror.workspace = true
+strum.workspace = true
 
 [dev-dependencies]
 dirs.workspace = true

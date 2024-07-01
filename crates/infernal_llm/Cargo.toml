@@ -1,0 +1,39 @@
+[package]
+name = "infernal_llm"
+version = "0.0.1"
+description = "Infernal's LLM implementations"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+documentation.workspace = true
+readme.workspace = true
+homepage.workspace = true
+repository.workspace = true
+license-file.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish.workspace = true
+
+[dependencies]
+byteorder.workspace = true
+cfg-if.workspace = true
+gguf.workspace = true
+hex.workspace = true
+infernal.workspace = true
+libc.workspace = true
+memmap2.workspace = true
+num_cpus.workspace = true
+rand.workspace = true
+strum.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+dirs.workspace = true
+llama_cpp_sys.workspace = true
+tracing-subscriber.workspace = true
+
+[features]
+default = []
+metal = ["infernal/metal"]
+cuda = []

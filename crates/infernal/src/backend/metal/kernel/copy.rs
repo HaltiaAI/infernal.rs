@@ -4,13 +4,13 @@ use crate::{
     args,
     backend::metal::{
         kernel::{Arg, Kernel, TensorBuf, UnarySrc, A},
-        Metal,
+        Metal, Pipeline,
     },
     unsupported_type, Type,
 };
 
 pub(crate) struct Copy<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a Pipeline,
     dst: TensorBuf<'a>,
     src: UnarySrc<'a>,
 }
@@ -39,7 +39,7 @@ impl<'a> Kernel<1> for Copy<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &Pipeline {
         self.pipeline
     }
     fn src(&self) -> &UnarySrc<'a> {

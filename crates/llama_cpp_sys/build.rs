@@ -616,7 +616,7 @@ fn bindgen_llamacpp(out_dir: &Path) {
                 .unwrap(),
         )
         .allowlist_file(r".*llama.h")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");
     let llama_path = Path::new("./src/llama.rs");
@@ -640,7 +640,7 @@ fn bindgen_ggml() {
         .header("llama.cpp/ggml-cuda.h")
         .allowlist_file(r".*ggml-cuda.h");
     let ggml_bindings = ggml_builder
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .generate()
         .expect("Unable to generate bindings");
     let ggml_path = Path::new("./src/ggml.rs");

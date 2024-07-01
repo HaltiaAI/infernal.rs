@@ -5,8 +5,8 @@ use thiserror::Error;
 pub use crate::{
     context::{Context, Header, TensorInfo, WEIGHT_ALIGN},
     dims::Dims,
-    kv::{TypeCastError, TypeConvError, Value},
-    typ::TensorType,
+    kv::{KvKey, TypeCastError, TypeConvError, Value},
+    typ::*,
 };
 
 mod context;

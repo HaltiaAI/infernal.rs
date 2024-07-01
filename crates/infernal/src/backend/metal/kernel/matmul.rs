@@ -1,10 +1,12 @@
 use metal::{ComputePipelineState, MTLSize};
-use tracing::trace;
 
 use crate::{
     args,
     backend::{
-        metal::kernel::{Arg, BinarySrc, Kernel, TensorBuf, A, B},
+        metal::{
+            kernel::{Arg, BinarySrc, Kernel, TensorBuf, A, B},
+            Pipeline,
+        },
         Metal,
     },
     unsupported_type,
@@ -30,7 +32,7 @@ pub(crate) fn use_mm_kernel(metal: &Metal, src: &BinarySrc) -> bool {
 }
 
 // pub(crate) struct MulMM_Old<'a> {
-//     pipeline: &'a ComputePipelineState,
+//     pipeline: &'a crate::backend::metal::Pipeline,
 //     src: BinarySrc<'a>,
 //     dst: TensorBuf<'a>,
 
@@ -39,7 +41,7 @@ pub(crate) fn use_mm_kernel(metal: &Metal, src: &BinarySrc) -> bool {
 // }
 
 pub(crate) struct MulMM<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a Pipeline,
     src: BinarySrc<'a>,
     dst: TensorBuf<'a>,
 
@@ -82,7 +84,7 @@ impl<'a> Kernel<2> for MulMM<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &Pipeline {
         self.pipeline
     }
     fn src(&self) -> &BinarySrc<'a> {
@@ -158,7 +160,7 @@ impl<'a> Kernel<2> for MulMM<'a> {
 }
 
 pub(crate) struct MulMV<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a crate::backend::metal::Pipeline,
     src: BinarySrc<'a>,
     dst: TensorBuf<'a>,
 
@@ -186,7 +188,6 @@ impl<'a> MulMV<'a> {
         let mut nth1 = 1;
         let (pipeline, tg) = match src[A].tensor.typ() {
             F32 => {
-                trace!("using mul_mv_f32_f32");
                 let n_rows = 4;
                 let ny = (b_d1 + n_rows - 1) / n_rows;
                 (
@@ -202,20 +203,16 @@ impl<'a> MulMV<'a> {
                 let mut n_rows = 1;
                 let pipeline = if src[B].tensor.typ() == F32 {
                     if b_d1 * b_d2 < 4 {
-                        trace!("using mul_mv_f16_f32_1row");
                         &metal.pipelines.mul_mv_f16_f32_1row
                     } else if a_d0 >= 128 && a_d1 >= 8 && a_d0 % 4 == 0 {
                         n_rows = b_d1;
-                        trace!("using mul_mv_f16_f32_l4");
                         &metal.pipelines.mul_mv_f16_f32_l4
                     } else {
-                        trace!("using mul_mv_f16_f32");
                         n_rows = 4;
                         &metal.pipelines.mul_mv_f16_f32
                     }
                 } else if src[B].tensor.typ() == F16 {
                     n_rows = 4;
-                    trace!("using mul_mv_f16_f16");
                     &metal.pipelines.mul_mv_f16_f16
                 } else {
                     unsupported_type!(src[B].tensor.typ(), matmul);
@@ -236,26 +233,17 @@ impl<'a> MulMV<'a> {
                 let mut width = (a_d1 + 3) / 4;
                 let pipeline = match src[A].tensor.typ() {
                     Q2_K => {
-                        trace!("using mul_mv_q2_K_f32");
                         width = (a_d1 + 7) / 8;
                         &metal.pipelines.mul_mv_q2_K_f32
                     }
-                    Q3_K => {
-                        trace!("using mul_mv_q3_K_f32");
-                        &metal.pipelines.mul_mv_q3_K_f32
-                    }
+                    Q3_K => &metal.pipelines.mul_mv_q3_K_f32,
                     Q4_K => {
-                        trace!("using mul_mv_q4_K_f32");
                         nth0 = 4;
                         nth1 = 8;
                         &metal.pipelines.mul_mv_q4_K_f32
                     }
-                    Q5_K => {
-                        trace!("using mul_mv_q5_K_f32");
-                        &metal.pipelines.mul_mv_q5_K_f32
-                    }
+                    Q5_K => &metal.pipelines.mul_mv_q5_K_f32,
                     Q6_K => {
-                        trace!("using mul_mv_q6_K_f32");
                         width = (a_d1 + 1) / 2;
                         &metal.pipelines.mul_mv_q6_K_f32
                     }
@@ -295,7 +283,7 @@ impl<'a> Kernel<2> for MulMV<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &crate::backend::metal::Pipeline {
         self.pipeline
     }
     fn src(&self) -> &BinarySrc<'a> {

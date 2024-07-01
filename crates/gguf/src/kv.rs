@@ -172,3 +172,50 @@ pub struct Kv {
     pub value: Value,
     // typ: Type, TODO: is this needed? value already contains the info
 }
+
+/// LLM related keys for GGUF's key-value store.
+#[derive(Clone, Copy, Debug)]
+pub enum KvKey {
+    GeneralArchitecture,
+    GeneralQuantizationVersion,
+    GeneralAlignment,
+    GeneralName,
+    GeneralAuthor,
+    GeneralUrl,
+    GeneralDescription,
+    GeneralLicense,
+    GeneralSourceUrl,
+    GeneralSourceHfRepo,
+    GeneralFileType,
+
+    ContextLength,
+    EmbeddingLength,
+    BlockCount,
+    FeedForwardLength,
+    UseParallelResidual,
+    TensorDataLayout,
+
+    AttentionHeadCount,
+    AttentionHeadCountKv,
+    AttentionMaxAlibiBias,
+    AttentionClampKqv,
+    AttentionLayernormEps,
+    AttentionLayernormRmsEps,
+
+    RopeDimensionCount,
+    RopeFreqBase,
+    RopeScaleLinear,
+
+    TokenizerModel,
+    TokenizerList,
+    TokenizerTokenType,
+    TokenizerScores,
+    TokenizerMerges,
+    TokenizerBosId,
+    TokenizerEosId,
+    TokenizerUnkId,
+    TokenizerSepId,
+    TokenizerPadId,
+    TokenizerHfJson,
+    TokenizerRwkv,
+}

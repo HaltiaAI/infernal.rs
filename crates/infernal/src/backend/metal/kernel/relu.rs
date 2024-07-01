@@ -1,4 +1,4 @@
-use metal::{ComputePipelineState, MTLSize};
+use metal::MTLSize;
 
 use crate::backend::{
     metal::kernel::{Arg, Kernel, TensorBuf, UnarySrc},
@@ -6,7 +6,7 @@ use crate::backend::{
 };
 
 pub(crate) struct Relu<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a crate::backend::metal::Pipeline,
     src: UnarySrc<'a>,
     dst: TensorBuf<'a>,
 }
@@ -26,7 +26,7 @@ impl<'a> Kernel<1> for Relu<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &crate::backend::metal::Pipeline {
         self.pipeline
     }
     fn src(&self) -> &UnarySrc<'a> {

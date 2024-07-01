@@ -10,7 +10,7 @@ use crate::{
 };
 
 pub(crate) struct RopeOld<'a> {
-    pipeline: &'a ComputePipelineState,
+    pipeline: &'a crate::backend::metal::Pipeline,
     src: UnarySrc<'a>,
     dst: TensorBuf<'a>,
     args: op::RopeExpanded,
@@ -43,7 +43,7 @@ impl<'a> Kernel<1> for RopeOld<'a> {
     where
         Self: 'arg;
 
-    fn pipeline(&self) -> &ComputePipelineState {
+    fn pipeline(&self) -> &crate::backend::metal::Pipeline {
         self.pipeline
     }
     fn src(&self) -> &UnarySrc<'a> {

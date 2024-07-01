@@ -1,8 +1,9 @@
 use std::mem;
 
-use metal::{Buffer, ComputeCommandEncoderRef, ComputePipelineState, MTLSize};
+use metal::{Buffer, ComputeCommandEncoderRef, MTLSize};
+use tracing::trace;
 
-use crate::tensor::Tensor;
+use crate::{backend::metal::Pipeline, tensor::Tensor};
 
 pub(crate) use add_old::AddOld;
 mod add_old;
@@ -18,8 +19,6 @@ pub(crate) use get_rows::GetRows;
 mod get_rows;
 pub(crate) use matmul::{use_mm_kernel, MulMM, MulMV};
 mod matmul;
-pub(crate) use matmul_old::{use_mm_kernel_old, MulMMOld, MulMVOld};
-mod matmul_old;
 pub(crate) use mul_old::MulOld;
 mod mul_old;
 pub(crate) use relu::Relu;
@@ -80,7 +79,9 @@ pub(crate) trait Kernel<const N_SRC: usize> {
         Self: 'arg;
 
     fn encode(&self, encoder: &ComputeCommandEncoderRef) {
-        encoder.set_compute_pipeline_state(self.pipeline());
+        trace!(pipeline.name = self.pipeline().name);
+
+        encoder.set_compute_pipeline_state(&self.pipeline().state);
 
         // Encode source buffers first, then the destination buffer. Always in this order.
         for (i, src) in self.src().iter().enumerate() {
@@ -106,7 +107,7 @@ pub(crate) trait Kernel<const N_SRC: usize> {
         encoder.dispatch_thread_groups(self.threadgroups(), self.threads_per_threadgroup());
     }
 
-    fn pipeline(&self) -> &ComputePipelineState;
+    fn pipeline(&self) -> &Pipeline;
     fn src(&self) -> &Src<'_, N_SRC>;
     fn dst(&self) -> &TensorBuf<'_>;
     fn args(&self) -> Self::Args<'_>;
