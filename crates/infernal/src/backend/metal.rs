@@ -1,7 +1,6 @@
 #![allow(unused)]
 
-use std::time::Instant;
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use metal::{
     CommandBufferRef, CommandQueue, CompileOptions, ComputeCommandEncoderRef,
@@ -16,7 +15,7 @@ use crate::{
     backend::{
         metal::kernel::Kernel,
         paging::{self, PageCache},
-        Backend, BackendBuf, DanglingTensor, DeviceNotFound, MemoryLimitTooLow, ComputeError
+        Backend, BackendBuf, ComputeError, DanglingTensor, DeviceNotFound, MemoryLimitTooLow,
     },
     buf::BufId,
     graph::{ComputeGraph, Optimizer},

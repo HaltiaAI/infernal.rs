@@ -11,13 +11,13 @@ use memmap2::Mmap;
 use thiserror::Error;
 use tracing::trace;
 
-use crate::{buf::Buf, BufId, ComputeGraph, Optimizer, Tensor, TensorSrc, TensorNotFound};
+use crate::{buf::Buf, BufId, ComputeGraph, Optimizer, Tensor, TensorNotFound, TensorSrc};
 
 pub use metal::{Config, Metal};
 
+mod cpu;
 mod metal;
 mod paging;
-mod cpu;
 
 pub trait Backend {
     fn add_buf(&mut self, buf: BackendBuf) -> Result<(), MemoryLimitTooLow>;
@@ -169,9 +169,7 @@ impl BackendBuf {
             Shared(buf) => BufRef {
                 id: self.id,
                 // TODO: return errors here
-                inner: BufRefInner::Rc(
-                    buf.borrow()
-                ),
+                inner: BufRefInner::Rc(buf.borrow()),
             },
             Paged(buf) => BufRef {
                 id: self.id,
@@ -292,7 +290,9 @@ impl BufRef<'_> {
             BufRefInner::Rc(buf) => buf.is_empty(),
             BufRefInner::RefMmap(buf) => buf.is_empty(),
             BufRefInner::RefPaged(buf) => buf.data.as_ref().expect("Buffer not mapped.").is_empty(),
-            BufRefInner::RefPagedMmap(buf) => buf.mmap.as_ref().expect("Buffer not mapped").is_empty(),
+            BufRefInner::RefPagedMmap(buf) => {
+                buf.mmap.as_ref().expect("Buffer not mapped").is_empty()
+            }
             _ => todo!(),
         }
     }
@@ -305,8 +305,12 @@ impl BufRef<'_> {
             BufRefInner::Slice(buf) => &buf[offs..offs + size],
             BufRefInner::Rc(buf) => &buf[offs..offs + size],
             BufRefInner::RefMmap(buf) => &buf[offs..offs + size],
-            BufRefInner::RefPaged(buf) => &buf.data.as_ref().expect("Buffer not mapped.")[offs..offs + size],
-            BufRefInner::RefPagedMmap(buf) => &buf.mmap.as_ref().expect("Buffer not mapped.")[offs..offs + size],
+            BufRefInner::RefPaged(buf) => {
+                &buf.data.as_ref().expect("Buffer not mapped.")[offs..offs + size]
+            }
+            BufRefInner::RefPagedMmap(buf) => {
+                &buf.mmap.as_ref().expect("Buffer not mapped.")[offs..offs + size]
+            }
         }
     }
 }

@@ -1,19 +1,10 @@
-use crate::buf::Buf;
-use crate::BufId;
-use crate::ComputeGraph;
-use crate::Tensor;
-use crate::TensorSrc;
-use crate::Optimizer;
-use crate::Op;
+use crate::{buf::Buf, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
 
-use super::Backend;
-use super::BackendBuf;
-use super::MemoryLimitTooLow;
-use super::DanglingTensor;
-use super::ComputeError;
-use super::paging::Device;
-use super::paging::DeviceInfo;
-use super::paging;
+use super::{
+    paging,
+    paging::{Device, DeviceInfo},
+    Backend, BackendBuf, ComputeError, DanglingTensor, MemoryLimitTooLow,
+};
 
 use std::sync::Arc;
 
@@ -22,10 +13,11 @@ pub struct CpuBackend {
 }
 
 impl CpuBackend {
-    fn borrow2(&self, 
+    fn borrow2(
+        &self,
         ctx: &impl TensorSrc,
-        t0: &Tensor, 
-        t1: &Tensor
+        t0: &Tensor,
+        t1: &Tensor,
     ) -> Result<(&[u8], &mut [u8]), ComputeError> {
         let [buf_a, buf_dst] = self.page_cache.get2(t0, t1)?;
 
@@ -40,7 +32,10 @@ impl CpuBackend {
         let dst = unsafe {
             let offset = t1.data_offs();
             let size = t1.size();
-            let view = &mut buf_dst.buf.as_shared_mut().expect("Data might not be mapped in")[offset..offset + size];
+            let view = &mut buf_dst
+                .buf
+                .as_shared_mut()
+                .expect("Data might not be mapped in")[offset..offset + size];
 
             &mut *(view as *mut _)
         };
@@ -63,9 +58,8 @@ impl CpuBackend {
                     _ => todo!(),
                 }
             }
-            _ => return Ok(())
+            _ => return Ok(()),
         }
-
     }
 }
 
@@ -75,7 +69,9 @@ impl Backend for CpuBackend {
     }
 
     fn get_tensor_buf(&self, tensor: &Tensor) -> Result<&BackendBuf, DanglingTensor> {
-        self.page_cache.get(tensor.buf_id).ok_or_else(|| DanglingTensor::new(tensor))
+        self.page_cache
+            .get(tensor.buf_id)
+            .ok_or_else(|| DanglingTensor::new(tensor))
     }
 
     fn get_buf(&self, buf_id: BufId) -> Option<&BackendBuf> {
@@ -90,8 +86,12 @@ impl Backend for CpuBackend {
         Ok(())
     }
 
-    fn compute_graph<O: Optimizer>(&mut self, graph: &ComputeGraph<O>, ctx: &impl TensorSrc) -> Result<(), ComputeError> {
-        let exec_plan = graph 
+    fn compute_graph<O: Optimizer>(
+        &mut self,
+        graph: &ComputeGraph<O>,
+        ctx: &impl TensorSrc,
+    ) -> Result<(), ComputeError> {
+        let exec_plan = graph
             .exec_plan(self.mem_limit())
             .ok_or_else(|| ComputeError::MissingExecutionPlan(self.mem_limit()))?;
 

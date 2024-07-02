@@ -1,4 +1,4 @@
-use std::{collections::HashSet, time::Instant, sync::Arc, ops::Deref};
+use std::{collections::HashSet, ops::Deref, sync::Arc, time::Instant};
 
 use tracing::{debug, info, trace, warn};
 
@@ -372,7 +372,7 @@ impl<D: Device> PageCache<D> {
             AllocatedPage {
                 buf: &page1.buf,
                 device_buf: page1.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
-            }
+            },
         ])
     }
 
