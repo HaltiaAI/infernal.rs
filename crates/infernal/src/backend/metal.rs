@@ -317,8 +317,8 @@ impl Metal {
                 let [buf_a, buf_dst] = self.page_cache.get2(a, dst)?;
 
                 let encoder = &exec.encoder;
-                let dst = (dst, buf_dst).into();
-                let src = [(a, buf_a).into()];
+                let dst = (dst, &*buf_dst).into();
+                let src = [(a, &*buf_a).into()];
 
                 use UnaryOp::*;
                 match op {

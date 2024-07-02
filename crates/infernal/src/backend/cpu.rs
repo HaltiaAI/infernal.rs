@@ -32,7 +32,7 @@ impl CpuBackend {
         let a = unsafe {
             let offset = t0.data_offs();
             let size = t0.size();
-            let view = &buf_a.borrow()[offset..offset + size];
+            let view = &buf_a.buf.borrow()[offset..offset + size];
 
             &*(view as *const _)
         };
@@ -40,7 +40,7 @@ impl CpuBackend {
         let dst = unsafe {
             let offset = t1.data_offs();
             let size = t1.size();
-            let view = &mut buf_dst.as_shared_mut().expect("Data might not be mapped in")[offset..offset + size];
+            let view = &mut buf_dst.buf.as_shared_mut().expect("Data might not be mapped in")[offset..offset + size];
 
             &mut *(view as *mut _)
         };
@@ -128,7 +128,7 @@ impl Backend for CpuBackend {
 pub struct CpuDevice;
 
 impl Device for CpuDevice {
-    type Buf = Arc<BackendBuf>;
+    type Buf = ();
 
     fn info(&self) -> DeviceInfo {
         DeviceInfo {
@@ -138,7 +138,7 @@ impl Device for CpuDevice {
     }
 
     fn new_buf(&self, buf: &Arc<BackendBuf>) -> std::io::Result<Self::Buf> {
-        return Ok(buf.clone());
+        Ok(())
     }
 
     fn free_buf(&self, buf: Self::Buf) -> std::io::Result<()> {

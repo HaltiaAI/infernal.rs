@@ -1,4 +1,4 @@
-use std::{collections::HashSet, time::Instant, sync::Arc};
+use std::{collections::HashSet, time::Instant, sync::Arc, ops::Deref};
 
 use tracing::{debug, info, trace, warn};
 
@@ -355,7 +355,7 @@ impl<D: Device> PageCache<D> {
         Ok(())
     }
 
-    pub fn get2(&self, t0: &Tensor, t1: &Tensor) -> Result<[&D::Buf; 2], DanglingTensor> {
+    pub fn get2(&self, t0: &Tensor, t1: &Tensor) -> Result<[AllocatedPage<D>; 2], DanglingTensor> {
         let page0 = self.get_page(t0.buf_id).ok_or(DanglingTensor::new(t0))?;
 
         let page1 = if t1.buf_id == t0.buf_id {
@@ -365,8 +365,14 @@ impl<D: Device> PageCache<D> {
         };
 
         Ok([
-            page0.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
-            page1.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
+            AllocatedPage {
+                buf: page0.buf.as_ref(),
+                device_buf: page0.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
+            },
+            AllocatedPage {
+                buf: page1.buf.as_ref(),
+                device_buf: page1.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
+            }
         ])
     }
 
@@ -399,6 +405,19 @@ impl<D: Device> PageCache<D> {
 }
 
 const UNPAGED_BUG_MSG: &str = "Backend buffer not paged in. This is a bug, please report.";
+
+pub(crate) struct AllocatedPage<'a, D: Device> {
+    pub buf: &'a BackendBuf,
+    pub device_buf: &'a D::Buf,
+}
+
+impl<'a, D: Device> Deref for AllocatedPage<'a, D> {
+    type Target = D::Buf;
+
+    fn deref(&self) -> &'a Self::Target {
+        self.device_buf
+    }
+}
 
 struct Page<D: Device> {
     buf: Arc<BackendBuf>,
