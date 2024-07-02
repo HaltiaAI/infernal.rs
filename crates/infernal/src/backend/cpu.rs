@@ -15,7 +15,7 @@ impl CpuBackend {
     /// the src tensor, whule `t1` is borrowed mutably and is used as the `dst` tensor.
     ///
     /// # Safety
-    /// Callers must ensure that `t0` and `t1` dont overlap if they point to the same buffer and
+    /// Callers must ensure that `t0` and `t1` don't overlap if they point to the same buffer and
     /// they must ensure that `t0` and `t1` live and are not unloaded for as long as the returned
     /// slices live.
     fn borrow2<'t>(
@@ -26,10 +26,10 @@ impl CpuBackend {
         let [buf_a, buf_dst] = self.page_cache.get2(t0, t1)?;
 
         debug_assert!(
-            t0.buf_id() != t1.buf_id() || 
-            (t0.data_offs() + t0.size() <= t1.data_offs() || 
-             t1.data_offs() + t1.size() <= t0.data_offs()),
-             "t0 and t1 have the same buf_id but overlap"
+            t0.buf_id() != t1.buf_id()
+                || (t0.data_offs() + t0.size() <= t1.data_offs()
+                    || t1.data_offs() + t1.size() <= t0.data_offs()),
+            "t0 and t1 have the same buf_id but overlap"
         );
 
         let a = unsafe {
@@ -90,11 +90,11 @@ impl Backend for CpuBackend {
     }
 
     fn mem_limit(&self) -> usize {
-        usize::MAX
+        self.page_cache.mem_limit()
     }
 
     fn set_mem_limit(&mut self, mem_limit: usize) -> Result<(), MemoryLimitTooLow> {
-        Ok(())
+        self.page_cache.set_mem_limit(mem_limit)
     }
 
     fn compute_graph<O: Optimizer>(
@@ -142,9 +142,11 @@ impl Device for CpuDevice {
     type Buf = ();
 
     fn info(&self) -> DeviceInfo {
+        let info = sysinfo::System::new_all();
+
         DeviceInfo {
-            mem_limit: usize::MAX,
-            max_buf_size: usize::MAX,
+            mem_limit: info.available_memory() as _,
+            max_buf_size: info.available_memory() as _,
         }
     }
 

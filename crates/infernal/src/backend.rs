@@ -104,10 +104,10 @@ pub struct BackendBuf {
 }
 
 pub enum BackendData {
-    Mmap(RefCell<Mmap>),
+    Mmap(Mmap),
     Shared(Rc<RefCell<Buf>>),
-    Paged(RefCell<PagedBuf>),
-    PagedMmap(RefCell<PagedMmap>),
+    Paged(PagedBuf),
+    PagedMmap(PagedMmap),
 }
 
 impl From<Rc<RefCell<Buf>>> for BackendBuf {
@@ -151,10 +151,10 @@ impl BackendBuf {
     pub(crate) fn size(&self) -> usize {
         use BackendData::*;
         match &self.data {
-            Mmap(buf) => buf.borrow().len(),
+            Mmap(buf) => buf.len(),
             Shared(buf) => buf.borrow().len(),
-            Paged(page) => page.borrow().size,
-            PagedMmap(page) => page.borrow().size,
+            Paged(page) => page.size,
+            PagedMmap(page) => page.size,
         }
     }
 
@@ -164,7 +164,7 @@ impl BackendBuf {
         match &self.data {
             Mmap(buf) => BufRef {
                 id: self.id,
-                inner: BufRefInner::RefMmap(buf.borrow()),
+                inner: BufRefInner::Slice(buf.as_ref()),
             },
             Shared(buf) => BufRef {
                 id: self.id,
@@ -173,19 +173,19 @@ impl BackendBuf {
             },
             Paged(buf) => BufRef {
                 id: self.id,
-                inner: BufRefInner::RefPaged(buf.borrow()),
+                inner: BufRefInner::Slice(buf.data.as_ref().expect("paged buffer not loaded")),
             },
             PagedMmap(buf) => BufRef {
                 id: self.id,
-                inner: BufRefInner::RefPagedMmap(buf.borrow()),
+                inner: BufRefInner::Slice(buf.mmap.as_ref().expect("paged mmap not loaded")),
             },
         }
     }
 
     #[inline(always)]
-    pub fn as_mmap(&self) -> Option<cell::Ref<'_, Mmap>> {
+    pub fn as_mmap(&self) -> Option<&Mmap> {
         match &self.data {
-            BackendData::Mmap(buf) => Some(buf.borrow()),
+            BackendData::Mmap(buf) => Some(&buf),
             _ => None,
         }
     }
@@ -213,14 +213,14 @@ impl BackendBuf {
     pub fn status(&self) -> BufStatus {
         match &self.data {
             BackendData::Paged(buf) => {
-                if buf.borrow().data.is_some() {
+                if buf.data.is_some() {
                     BufStatus::Loaded
                 } else {
                     BufStatus::Offloaded
                 }
             }
             BackendData::PagedMmap(buf) => {
-                if buf.borrow().mmap.is_some() {
+                if buf.mmap.is_some() {
                     BufStatus::Loaded
                 } else {
                     BufStatus::Offloaded
@@ -231,10 +231,10 @@ impl BackendBuf {
     }
 
     /// Pages in the buffer if it's paged out.
-    pub(crate) fn load(&self) -> std::io::Result<()> {
+    pub(crate) fn load(&mut self) -> std::io::Result<()> {
         match self.data {
-            BackendData::Paged(ref buf) => buf.borrow_mut().load(),
-            BackendData::PagedMmap(ref buf) => buf.borrow_mut().load(),
+            BackendData::Paged(ref mut buf) => buf.load(),
+            BackendData::PagedMmap(ref mut buf) => buf.load(),
             _ => Ok(()),
         }
     }
@@ -243,14 +243,14 @@ impl BackendBuf {
     /// tells us whether the buffer was paged out.
     // TODO: consider ability to offload write-tensors in which case we'd need to write to disk and
     // return an io::Result here
-    pub(crate) fn offload(&self) -> BufStatus {
+    pub(crate) fn offload(&mut self) -> BufStatus {
         match self.data {
-            BackendData::Paged(ref buf) => {
-                buf.borrow_mut().offload();
+            BackendData::Paged(ref mut buf) => {
+                buf.offload();
                 BufStatus::Offloaded
             }
-            BackendData::PagedMmap(ref buf) => {
-                buf.borrow_mut().offload();
+            BackendData::PagedMmap(ref mut buf) => {
+                buf.offload();
                 BufStatus::Offloaded
             }
             _ => BufStatus::Loaded,
@@ -266,9 +266,6 @@ pub struct BufRef<'a> {
 enum BufRefInner<'a> {
     Slice(&'a [u8]),
     Rc(cell::Ref<'a, Buf>),
-    RefMmap(cell::Ref<'a, Mmap>),
-    RefPaged(cell::Ref<'a, PagedBuf>),
-    RefPagedMmap(cell::Ref<'a, PagedMmap>),
 }
 
 impl BufRef<'_> {
@@ -277,9 +274,6 @@ impl BufRef<'_> {
         match &self.inner {
             BufRefInner::Slice(buf) => buf.len(),
             BufRefInner::Rc(buf) => buf.len(),
-            BufRefInner::RefMmap(buf) => buf.as_ref().len(),
-            BufRefInner::RefPaged(buf) => buf.data.as_ref().expect("Buffer not mapped.").len(),
-            BufRefInner::RefPagedMmap(buf) => buf.mmap.as_ref().expect("Buffer not mapped").len(),
         }
     }
 
@@ -288,12 +282,6 @@ impl BufRef<'_> {
         match &self.inner {
             BufRefInner::Slice(buf) => buf.is_empty(),
             BufRefInner::Rc(buf) => buf.is_empty(),
-            BufRefInner::RefMmap(buf) => buf.is_empty(),
-            BufRefInner::RefPaged(buf) => buf.data.as_ref().expect("Buffer not mapped.").is_empty(),
-            BufRefInner::RefPagedMmap(buf) => {
-                buf.mmap.as_ref().expect("Buffer not mapped").is_empty()
-            }
-            _ => todo!(),
         }
     }
 
@@ -304,13 +292,6 @@ impl BufRef<'_> {
         match &self.inner {
             BufRefInner::Slice(buf) => &buf[offs..offs + size],
             BufRefInner::Rc(buf) => &buf[offs..offs + size],
-            BufRefInner::RefMmap(buf) => &buf[offs..offs + size],
-            BufRefInner::RefPaged(buf) => {
-                &buf.data.as_ref().expect("Buffer not mapped.")[offs..offs + size]
-            }
-            BufRefInner::RefPagedMmap(buf) => {
-                &buf.mmap.as_ref().expect("Buffer not mapped.")[offs..offs + size]
-            }
         }
     }
 }
@@ -323,9 +304,6 @@ impl Deref for BufRef<'_> {
         match &self.inner {
             BufRefInner::Slice(buf) => buf,
             BufRefInner::Rc(buf) => buf,
-            BufRefInner::RefMmap(buf) => buf,
-            BufRefInner::RefPaged(buf) => buf.data.as_ref().expect("Buffer not mapped."),
-            BufRefInner::RefPagedMmap(buf) => buf.mmap.as_ref().expect("Buffer not mapped."),
         }
     }
 }
@@ -333,7 +311,7 @@ impl Deref for BufRef<'_> {
 impl From<Mmap> for BackendData {
     #[inline(always)]
     fn from(buf: Mmap) -> Self {
-        Self::Mmap(RefCell::new(buf))
+        Self::Mmap(buf)
     }
 }
 impl From<Buf> for BackendData {
@@ -351,13 +329,13 @@ impl From<Rc<RefCell<Buf>>> for BackendData {
 impl From<PagedBuf> for BackendData {
     #[inline(always)]
     fn from(buf: PagedBuf) -> Self {
-        Self::Paged(RefCell::new(buf))
+        Self::Paged(buf)
     }
 }
 impl From<PagedMmap> for BackendData {
     #[inline(always)]
     fn from(buf: PagedMmap) -> Self {
-        Self::PagedMmap(RefCell::new(buf))
+        Self::PagedMmap(buf)
     }
 }
 
