@@ -11,10 +11,11 @@ use memmap2::Mmap;
 use thiserror::Error;
 use tracing::trace;
 
-use crate::{buf::Buf, BufId, ComputeGraph, Optimizer, Tensor, TensorSrc};
+use crate::{buf::Buf, BufId, ComputeGraph, Optimizer, Tensor, TensorNotFound, TensorSrc};
 
-pub use metal::{ComputeError, Config, Metal};
+pub use metal::{Config, Metal};
 
+mod cpu;
 mod metal;
 mod paging;
 
@@ -72,6 +73,22 @@ impl DanglingTensor {
 #[error("{0} device not found")]
 pub struct DeviceNotFound(&'static str);
 
+#[derive(Debug, Error)]
+pub enum ComputeError {
+    #[error(transparent)]
+    DanglingTensor(#[from] DanglingTensor),
+    #[error(transparent)]
+    TensorNotFound(#[from] TensorNotFound),
+    #[error("graph does not have an execution plan for {0} byte memory limit")]
+    MissingExecutionPlan(usize),
+    #[error("graph execution plan is empty, cannot execute")]
+    EmptyExecutionPlan,
+    #[error(transparent)]
+    MemoryLimitTooLow(#[from] MemoryLimitTooLow),
+    #[error("error paging buffer in/out: {0}")]
+    Paging(#[from] std::io::Error),
+}
+
 #[doc(hidden)]
 pub trait IntoBackendBufs {
     type Data: Into<BackendData>;
@@ -86,10 +103,8 @@ pub struct BackendBuf {
     data: BackendData,
 }
 
-#[doc(hidden)]
 pub enum BackendData {
     Mmap(Mmap),
-    Owned(Buf),
     Shared(Rc<RefCell<Buf>>),
     Paged(PagedBuf),
     PagedMmap(PagedMmap),
@@ -137,8 +152,7 @@ impl BackendBuf {
         use BackendData::*;
         match &self.data {
             Mmap(buf) => buf.len(),
-            Owned(buf) => buf.len(),
-            Shared(buf) => RefCell::borrow(buf).len(),
+            Shared(buf) => buf.borrow().len(),
             Paged(page) => page.size,
             PagedMmap(page) => page.size,
         }
@@ -150,19 +164,12 @@ impl BackendBuf {
         match &self.data {
             Mmap(buf) => BufRef {
                 id: self.id,
-                inner: BufRefInner::Slice(buf),
-            },
-            Owned(buf) => BufRef {
-                id: self.id,
-                inner: BufRefInner::Slice(buf),
+                inner: BufRefInner::Slice(buf.as_ref()),
             },
             Shared(buf) => BufRef {
                 id: self.id,
                 // TODO: return errors here
-                inner: BufRefInner::Rc(
-                    buf.try_borrow()
-                        .expect("backend cannot mutate buffer while it's being read"),
-                ),
+                inner: BufRefInner::Rc(buf.borrow()),
             },
             Paged(buf) => BufRef {
                 id: self.id,
@@ -178,15 +185,22 @@ impl BackendBuf {
     #[inline(always)]
     pub fn as_mmap(&self) -> Option<&Mmap> {
         match &self.data {
-            BackendData::Mmap(buf) => Some(buf),
+            BackendData::Mmap(buf) => Some(&buf),
             _ => None,
         }
     }
 
     #[inline(always)]
-    pub fn as_shared(&self) -> Option<&Rc<RefCell<Buf>>> {
+    pub fn as_shared(&self) -> Option<cell::Ref<'_, Buf>> {
         match &self.data {
-            BackendData::Shared(buf) => Some(buf),
+            BackendData::Shared(buf) => Some(buf.borrow()),
+            _ => None,
+        }
+    }
+
+    pub fn as_shared_mut(&self) -> Option<cell::RefMut<'_, Buf>> {
+        match &self.data {
+            BackendData::Shared(buf) => Some(buf.borrow_mut()),
             _ => None,
         }
     }
@@ -218,9 +232,9 @@ impl BackendBuf {
 
     /// Pages in the buffer if it's paged out.
     pub(crate) fn load(&mut self) -> std::io::Result<()> {
-        match &mut self.data {
-            BackendData::Paged(buf) => buf.load(),
-            BackendData::PagedMmap(buf) => buf.load(),
+        match self.data {
+            BackendData::Paged(ref mut buf) => buf.load(),
+            BackendData::PagedMmap(ref mut buf) => buf.load(),
             _ => Ok(()),
         }
     }
@@ -230,12 +244,12 @@ impl BackendBuf {
     // TODO: consider ability to offload write-tensors in which case we'd need to write to disk and
     // return an io::Result here
     pub(crate) fn offload(&mut self) -> BufStatus {
-        match &mut self.data {
-            BackendData::Paged(buf) => {
+        match self.data {
+            BackendData::Paged(ref mut buf) => {
                 buf.offload();
                 BufStatus::Offloaded
             }
-            BackendData::PagedMmap(buf) => {
+            BackendData::PagedMmap(ref mut buf) => {
                 buf.offload();
                 BufStatus::Offloaded
             }
@@ -303,7 +317,7 @@ impl From<Mmap> for BackendData {
 impl From<Buf> for BackendData {
     #[inline(always)]
     fn from(buf: Buf) -> Self {
-        Self::Owned(buf)
+        Self::Shared(Rc::new(RefCell::new(buf)))
     }
 }
 impl From<Rc<RefCell<Buf>>> for BackendData {

@@ -230,7 +230,9 @@ impl<B: Deref<Target = [u8]>> GraphAlloc<B> {
     fn reuse_parent_or_alloc_node(&mut self, id: TensorId, ctx: &mut Ctx) -> Result<(), Oom> {
         // NB: Not all nodes are present in the tensors list because the parent of a node may be in
         // another context and thus need not be allocated (e.g. a read-only weight node).
-        let Some(tensor) = ctx.get(id) else { return Ok(()) };
+        let Some(tensor) = ctx.get(id) else {
+            return Ok(());
+        };
         let op = tensor.op;
 
         if tensor.buf_id() != BufId::unallocated() {
@@ -261,7 +263,9 @@ impl<B: Deref<Target = [u8]>> GraphAlloc<B> {
                     continue;
                 }
 
-                let Some(parent) = ctx.get(p_id) else { continue };
+                let Some(parent) = ctx.get(p_id) else {
+                    continue;
+                };
                 // Disregard nodes not allocated by this allocator.
                 // TODO: should this occur actually?
                 if parent.buf_id().alloc_id() != self.id.alloc_id() {
@@ -338,7 +342,9 @@ impl<B: Deref<Target = [u8]>> GraphAlloc<B> {
             let Some(tensor) = ctx.get(id) else { continue };
 
             for p_id in tensor.op.parents() {
-                let Some(parent) = ctx.get(p_id) else { continue; };
+                let Some(parent) = ctx.get(p_id) else {
+                    continue;
+                };
                 let parent_node = self.nodes.get_mut(&p_id).unwrap_or_else(|| {
                     // SAFETY: If the parent is present in the tensors list, it is
                     // present in our nodes map.
@@ -356,7 +362,9 @@ impl<B: Deref<Target = [u8]>> GraphAlloc<B> {
 
                 if parent_node.is_unreferenced() {
                     if let Some(view) = parent.view() {
-                        let Some(origin) = ctx.get(view.origin) else { continue; };
+                        let Some(origin) = ctx.get(view.origin) else {
+                            continue;
+                        };
                         // SAFETY: If the origin node is present in the tensors list, it is
                         // present in our nodes map.
                         let origin_node = self.nodes.get_mut(&view.origin).unwrap();

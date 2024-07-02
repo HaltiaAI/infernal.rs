@@ -1,4 +1,4 @@
-use std::{collections::HashSet, time::Instant};
+use std::{collections::HashSet, ops::Deref, time::Instant};
 
 use tracing::{debug, info, trace, warn};
 
@@ -17,7 +17,7 @@ pub(crate) trait Device {
     type Buf;
 
     fn info(&self) -> DeviceInfo;
-    fn new_buf(&self, buf: &[u8]) -> std::io::Result<Self::Buf>;
+    fn new_buf(&self, buf: &BackendBuf) -> std::io::Result<Self::Buf>;
     fn free_buf(&self, buf: Self::Buf) -> std::io::Result<()>;
 
     fn has_noncopy_bufs(&self) -> bool {
@@ -355,7 +355,7 @@ impl<D: Device> PageCache<D> {
         Ok(())
     }
 
-    pub fn get2(&self, t0: &Tensor, t1: &Tensor) -> Result<[&D::Buf; 2], DanglingTensor> {
+    pub fn get2(&self, t0: &Tensor, t1: &Tensor) -> Result<[AllocatedPage<D>; 2], DanglingTensor> {
         let page0 = self.get_page(t0.buf_id).ok_or(DanglingTensor::new(t0))?;
 
         let page1 = if t1.buf_id == t0.buf_id {
@@ -365,8 +365,14 @@ impl<D: Device> PageCache<D> {
         };
 
         Ok([
-            page0.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
-            page1.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
+            AllocatedPage {
+                buf: &page0.buf,
+                device_buf: page0.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
+            },
+            AllocatedPage {
+                buf: &page1.buf,
+                device_buf: page1.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
+            },
         ])
     }
 
@@ -400,6 +406,19 @@ impl<D: Device> PageCache<D> {
 
 const UNPAGED_BUG_MSG: &str = "Backend buffer not paged in. This is a bug, please report.";
 
+pub(crate) struct AllocatedPage<'a, D: Device> {
+    pub buf: &'a BackendBuf,
+    pub device_buf: &'a D::Buf,
+}
+
+impl<'a, D: Device> Deref for AllocatedPage<'a, D> {
+    type Target = D::Buf;
+
+    fn deref(&self) -> &'a Self::Target {
+        self.device_buf
+    }
+}
+
 struct Page<D: Device> {
     buf: BackendBuf,
     device_buf: Option<D::Buf>,
@@ -408,7 +427,7 @@ struct Page<D: Device> {
 impl<D: Device> Page<D> {
     fn new(buf: BackendBuf) -> Self {
         Self {
-            buf,
+            buf: buf,
             device_buf: None,
         }
     }
@@ -451,8 +470,7 @@ impl<D: Device> Page<D> {
                 self.buf.status() == BufStatus::Loaded,
                 "buffer cannot be loaded into VRAM if not in RAM"
             );
-            let buf = self.buf.borrow();
-            self.device_buf = Some(device.new_buf(&buf)?);
+            self.device_buf = Some(device.new_buf(&self.buf)?);
             debug!(name = %self.buf.name, id = %self.buf.id, size = %Bytes(size), "created GPU buffer");
             Ok(size)
         } else {
