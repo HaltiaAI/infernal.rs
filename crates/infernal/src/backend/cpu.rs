@@ -6,11 +6,11 @@ use super::{
     Backend, BackendBuf, ComputeError, DanglingTensor, MemoryLimitTooLow,
 };
 
-pub struct CpuBackend {
+pub struct Cpu {
     page_cache: paging::PageCache<CpuDevice>,
 }
 
-impl CpuBackend {
+impl Cpu {
     /// Method borrows two tensors backing memory store. `t0` is borrowed immutably and is used as
     /// the src tensor, whule `t1` is borrowed mutably and is used as the `dst` tensor.
     ///
@@ -74,7 +74,7 @@ impl CpuBackend {
     }
 }
 
-impl Backend for CpuBackend {
+impl Backend for Cpu {
     fn add_buf(&mut self, buf: BackendBuf) -> Result<(), MemoryLimitTooLow> {
         self.page_cache.insert(buf)
     }
