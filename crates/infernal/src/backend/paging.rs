@@ -17,7 +17,7 @@ pub(crate) trait Device {
     type Buf;
 
     fn info(&self) -> DeviceInfo;
-    fn new_buf(&self, buf: &Arc<BackendBuf>) -> std::io::Result<Self::Buf>;
+    fn new_buf(&self, buf: &BackendBuf) -> std::io::Result<Self::Buf>;
     fn free_buf(&self, buf: Self::Buf) -> std::io::Result<()>;
 
     fn has_noncopy_bufs(&self) -> bool {
@@ -170,7 +170,7 @@ impl<D: Device> PageCache<D> {
     }
 
     pub fn get(&self, id: BufId) -> Option<&BackendBuf> {
-        self.get_page(id).map(|page| page.buf.as_ref())
+        self.get_page(id).map(|page| &page.buf)
     }
 
     fn get_page(&self, id: BufId) -> Option<&Page<D>> {
@@ -366,11 +366,11 @@ impl<D: Device> PageCache<D> {
 
         Ok([
             AllocatedPage {
-                buf: page0.buf.as_ref(),
+                buf: &page0.buf,
                 device_buf: page0.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
             },
             AllocatedPage {
-                buf: page1.buf.as_ref(),
+                buf: &page1.buf,
                 device_buf: page1.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
             }
         ])
@@ -420,14 +420,14 @@ impl<'a, D: Device> Deref for AllocatedPage<'a, D> {
 }
 
 struct Page<D: Device> {
-    buf: Arc<BackendBuf>,
+    buf: BackendBuf,
     device_buf: Option<D::Buf>,
 }
 
 impl<D: Device> Page<D> {
     fn new(buf: BackendBuf) -> Self {
         Self {
-            buf: Arc::new(buf),
+            buf: buf,
             device_buf: None,
         }
     }

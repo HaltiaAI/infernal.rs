@@ -1,10 +1,10 @@
 use std::{
     borrow::Cow,
-    sync::{Arc, MutexGuard, Mutex},
     cell::{self, RefCell},
     fs::File,
     io::{Read, Seek, SeekFrom},
     ops::Deref,
+    rc::Rc,
 };
 
 use memmap2::Mmap;
@@ -105,14 +105,14 @@ pub struct BackendBuf {
 
 pub enum BackendData {
     Mmap(RefCell<Mmap>),
-    Shared(RefCell<Buf>),
+    Shared(Rc<RefCell<Buf>>),
     Paged(RefCell<PagedBuf>),
     PagedMmap(RefCell<PagedMmap>),
 }
 
-impl From<RefCell<Buf>> for BackendBuf {
+impl From<Rc<RefCell<Buf>>> for BackendBuf {
     #[inline(always)]
-    fn from(buf: RefCell<Buf>) -> Self {
+    fn from(buf: Rc<RefCell<Buf>>) -> Self {
         let id = BufId::from_addr(&buf.borrow());
         Self {
             id,
@@ -335,12 +335,12 @@ impl From<Mmap> for BackendData {
 impl From<Buf> for BackendData {
     #[inline(always)]
     fn from(buf: Buf) -> Self {
-        Self::Shared(RefCell::new(buf))
+        Self::Shared(Rc::new(RefCell::new(buf)))
     }
 }
-impl From<RefCell<Buf>> for BackendData {
+impl From<Rc<RefCell<Buf>>> for BackendData {
     #[inline(always)]
-    fn from(buf: RefCell<Buf>) -> Self {
+    fn from(buf: Rc<RefCell<Buf>>) -> Self {
         Self::Shared(buf)
     }
 }

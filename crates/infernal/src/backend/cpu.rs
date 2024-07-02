@@ -137,11 +137,11 @@ impl Device for CpuDevice {
         }
     }
 
-    fn new_buf(&self, buf: &Arc<BackendBuf>) -> std::io::Result<Self::Buf> {
+    fn new_buf(&self, _: &BackendBuf) -> std::io::Result<Self::Buf> {
         Ok(())
     }
 
-    fn free_buf(&self, buf: Self::Buf) -> std::io::Result<()> {
+    fn free_buf(&self, _: Self::Buf) -> std::io::Result<()> {
         Ok(())
     }
 

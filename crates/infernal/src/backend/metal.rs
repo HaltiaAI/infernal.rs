@@ -451,7 +451,7 @@ impl paging::Device for Device {
         }
     }
 
-    fn new_buf(&self, buf: &Arc<BackendBuf>) -> std::io::Result<Self::Buf> {
+    fn new_buf(&self, buf: &BackendBuf) -> std::io::Result<Self::Buf> {
         let bufref = buf.borrow();
         let aligned_size = self.align(bufref.len());
 
