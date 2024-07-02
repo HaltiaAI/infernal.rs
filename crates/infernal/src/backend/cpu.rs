@@ -1,4 +1,4 @@
-use crate::{buf::Buf, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
+use crate::{BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
 
 use super::{
     paging,
@@ -6,20 +6,31 @@ use super::{
     Backend, BackendBuf, ComputeError, DanglingTensor, MemoryLimitTooLow,
 };
 
-use std::sync::Arc;
-
 pub struct CpuBackend {
     page_cache: paging::PageCache<CpuDevice>,
 }
 
 impl CpuBackend {
-    fn borrow2(
+    /// Method borrows two tensors backing memory store. `t0` is borrowed immutably and is used as
+    /// the src tensor, whule `t1` is borrowed mutably and is used as the `dst` tensor.
+    ///
+    /// # Safety
+    /// Callers must ensure that `t0` and `t1` dont overlap if they point to the same buffer and
+    /// they must ensure that `t0` and `t1` live and are not unloaded for as long as the returned
+    /// slices live.
+    fn borrow2<'t>(
         &self,
-        ctx: &impl TensorSrc,
-        t0: &Tensor,
-        t1: &Tensor,
-    ) -> Result<(&[u8], &mut [u8]), ComputeError> {
+        t0: &'t Tensor,
+        t1: &'t Tensor,
+    ) -> Result<(&'t [u8], &'t mut [u8]), ComputeError> {
         let [buf_a, buf_dst] = self.page_cache.get2(t0, t1)?;
+
+        debug_assert!(
+            t0.buf_id() != t1.buf_id() || 
+            (t0.data_offs() + t0.size() <= t1.data_offs() || 
+             t1.data_offs() + t1.size() <= t0.data_offs()),
+             "t0 and t1 have the same buf_id but overlap"
+        );
 
         let a = unsafe {
             let offset = t0.data_offs();
@@ -52,7 +63,7 @@ impl CpuBackend {
             Op::Const => return Ok(()),
             Op::Unary { op, a } => {
                 let a = ctx.get_tensor(a)?;
-                let (buf_a, buf_dst) = self.borrow2(ctx, a, dst)?;
+                let (buf_a, buf_dst) = self.borrow2(a, dst)?;
 
                 match op {
                     _ => todo!(),
