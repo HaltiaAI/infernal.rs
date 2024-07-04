@@ -4,13 +4,15 @@ mod rmsnorm;
 mod silu;
 mod softmax;
 
-use crate::{op::UnaryOp, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
-
+use self::{
+    diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax,
+};
 use super::{
     paging,
     paging::{Device, DeviceInfo},
     Backend, BackendBuf, ComputeError, DanglingTensor, MemoryLimitTooLow,
 };
+use crate::{op::UnaryOp, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
 
 pub struct Cpu {
     page_cache: paging::PageCache<CpuDevice>,
@@ -19,7 +21,7 @@ pub struct Cpu {
 impl Cpu {
     pub fn new() -> Self {
         Self {
-            page_cache: paging::PageCache::new(64 * 1024 * 1024, &CpuDevice),
+            page_cache: paging::PageCache::new(CpuDevice.info().max_buf_size, &CpuDevice),
         }
     }
 
@@ -79,19 +81,19 @@ impl Cpu {
 
                 match op {
                     UnaryOp::Softmax { scale, .. } => {
-                        softmax::softmax(a, buf_a, buf_dst, scale);
+                        softmax(a, buf_a, buf_dst, scale);
                     }
                     UnaryOp::Relu => {
-                        relu::relu(buf_a, buf_dst);
+                        relu(buf_a, buf_dst);
                     }
                     UnaryOp::Silu => {
-                        silu::silu(buf_a, buf_dst);
+                        silu(buf_a, buf_dst);
                     }
                     UnaryOp::RmsNorm { eps } => {
-                        rmsnorm::rms_norm(a, buf_a, buf_dst, eps);
+                        rms_norm(a, buf_a, buf_dst, eps);
                     }
                     UnaryOp::DiagMaskInf { n_past } => {
-                        diag_mask_inf::diag_mask_inf(a, buf_a, buf_dst, n_past);
+                        diag_mask_inf(a, buf_a, buf_dst, n_past);
                     }
                     _ => todo!(),
                 }
