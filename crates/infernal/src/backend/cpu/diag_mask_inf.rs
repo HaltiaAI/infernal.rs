@@ -1,6 +1,6 @@
 use crate::{buf::SliceCast, Tensor};
 
-pub(crate) fn diag_mask_inf(input_tensor: &Tensor, input: &[u8], output: &mut [u8], n_past: usize) {
+pub(crate) fn diag_mask_inf(input_tensor: &Tensor, input: &[u8], output: &mut [u8], past_len: usize) {
     let input = input.cast::<f32>();
     let output = output.cast_mut::<f32>();
 
@@ -11,7 +11,7 @@ pub(crate) fn diag_mask_inf(input_tensor: &Tensor, input: &[u8], output: &mut [u
         for col in 0..cols {
             let i = row * cols + col;
 
-            if col > n_past + row % rows {
+            if col > past_len + row % rows {
                 output[i] = f32::NEG_INFINITY;
             } else {
                 output[i] = input[i];
