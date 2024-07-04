@@ -39,6 +39,7 @@ ggml = { workspace = true, features = ["metal"] }
 tracing-subscriber.workspace = true
 dirs.workspace = true
 llama_cpp_sys.workspace = true
+approx = "0.5"
 
 [[bench]]
 name = "matmul"
