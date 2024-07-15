@@ -365,14 +365,8 @@ impl<D: Device> PageCache<D> {
         };
 
         Ok([
-            AllocatedPage {
-                buf: &page0.buf,
-                device_buf: page0.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
-            },
-            AllocatedPage {
-                buf: &page1.buf,
-                device_buf: page1.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
-            },
+            page0.as_allocated().expect(UNPAGED_BUG_MSG),
+            page1.as_allocated().expect(UNPAGED_BUG_MSG),
         ])
     }
 
@@ -381,7 +375,7 @@ impl<D: Device> PageCache<D> {
         t0: &Tensor,
         t1: &Tensor,
         t2: &Tensor,
-    ) -> Result<[&D::Buf; 3], DanglingTensor> {
+    ) -> Result<[AllocatedPage<D>; 3], DanglingTensor> {
         let page0 = self.get_page(t0.buf_id).ok_or(DanglingTensor::new(t0))?;
 
         let page1 = if t1.buf_id == t0.buf_id {
@@ -397,9 +391,9 @@ impl<D: Device> PageCache<D> {
         };
 
         Ok([
-            page0.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
-            page1.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
-            page2.device_buf.as_ref().expect(UNPAGED_BUG_MSG),
+            page0.as_allocated().expect(UNPAGED_BUG_MSG),
+            page1.as_allocated().expect(UNPAGED_BUG_MSG),
+            page2.as_allocated().expect(UNPAGED_BUG_MSG),
         ])
     }
 }
@@ -488,5 +482,12 @@ impl<D: Device> Page<D> {
         } else {
             Ok(0)
         }
+    }
+
+    fn as_allocated(&self) -> Option<AllocatedPage<D>> {
+        Some(AllocatedPage {
+            buf: &self.buf,
+            device_buf: self.device_buf.as_ref()?,
+        })
     }
 }

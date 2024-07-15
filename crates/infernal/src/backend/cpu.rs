@@ -1,13 +1,14 @@
 use self::{
-    diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax,
+    diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax, add::add
 };
 use super::{
     paging,
     paging::{Device, DeviceInfo},
     Backend, BackendBuf, ComputeError, DanglingTensor, MemoryLimitTooLow,
 };
-use crate::{op::UnaryOp, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
+use crate::{op::{UnaryOp, BinaryOp}, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
 
+mod add;
 mod diag_mask_inf;
 mod relu;
 mod rmsnorm;
@@ -68,6 +69,58 @@ impl Cpu {
         Ok((a, dst))
     }
 
+    fn borrow3<'t>(
+        &self,
+        t0: &'t Tensor,
+        t1: &'t Tensor,
+        t2: &'t Tensor,
+    ) -> Result<(&'t [u8], &'t [u8], &'t mut [u8]), ComputeError> {
+        let [buf_a, buf_b, buf_dst] = self.page_cache.get3(t0, t1, t2)?;
+
+        debug_assert!(
+            t0.buf_id() != t2.buf_id()
+                || (t0.data_offs() + t0.size() <= t2.data_offs()
+                    || t2.data_offs() + t2.size() <= t0.data_offs()),
+            "t0 and t2 have the same buf_id but overlap"
+        );
+
+        debug_assert!(
+            t1.buf_id() != t2.buf_id()
+                || (t1.data_offs() + t1.size() <= t2.data_offs()
+                    || t2.data_offs() + t2.size() <= t1.data_offs()),
+            "t1 and t2 have the same buf_id but overlap"
+        );
+
+        let a = unsafe {
+            let offset = t0.data_offs();
+            let size = t0.size();
+            let view = &buf_a.buf.borrow()[offset..offset + size];
+
+            &*(view as *const _)
+        };
+
+        let b = unsafe {
+            let offset = t1.data_offs();
+            let size = t1.size();
+            let view = &buf_b.buf.borrow()[offset..offset + size];
+
+            &*(view as *const _)
+        };
+
+        let dst = unsafe {
+            let offset = t2.data_offs();
+            let size = t2.size();
+            let view = &mut buf_dst
+                .buf
+                .as_shared_mut()
+                .expect("Data might not be mapped in")[offset..offset + size];
+
+            &mut *(view as *mut _)
+        };
+
+        Ok((a, b, dst))
+    }
+
     fn dispatch_op<'scope, 'env, 'this: 'scope>(
         &'this self,
         ctx: &impl TensorSrc,
@@ -94,6 +147,21 @@ impl Cpu {
                     }
                     UnaryOp::DiagMaskInf { n_past } => {
                         diag_mask_inf(a, buf_a, buf_dst, n_past);
+                    }
+                    _ => todo!(),
+                }
+
+                Ok(())
+            }
+            Op::Binary { op, a, b } => {
+                let a = ctx.get_tensor(a)?;
+                let b = ctx.get_tensor(b)?;
+
+                let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
+
+                match op {
+                    crate::op::BinaryOp::Add => {
+                        add(a, b, dst, buf_a, buf_b, buf_dst);
                     }
                     _ => todo!(),
                 }
