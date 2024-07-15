@@ -1,7 +1,7 @@
 use crate::buf::SliceCast;
 use crate::Tensor;
 
-pub(crate) fn get_rows(src1_tensor: &Tensor, src2_tensor: &Tensor, dst_tensor: &Tensor, src1: &[u8], src2: &[u8], dst: &mut [u8]) {
+pub(crate) fn get_rows(src1_tensor: &Tensor, dst_tensor: &Tensor, src1: &[u8], src2: &[u8], dst: &mut [u8]) {
     let src1 = src1.cast::<f32>();
     let src2 = src2.cast::<i32>();
     let dst = dst.cast_mut::<f32>();
@@ -57,3 +57,4 @@ mod tests {
         Ok(())
     }
 }
+
