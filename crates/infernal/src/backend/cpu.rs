@@ -1,6 +1,6 @@
 use self::{
     diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax, add::add,
-    cpy::cpy, mul::mul,
+    cpy::cpy, mul::mul, get_rows::get_rows,
 };
 use super::{
     paging,
@@ -13,6 +13,7 @@ mod add;
 mod cpy;
 mod mul;
 mod diag_mask_inf;
+mod get_rows;
 mod relu;
 mod rmsnorm;
 mod silu;
@@ -172,6 +173,10 @@ impl Cpu {
                     crate::op::BinaryOp::Copy => {
                         let (buf_a, buf_dst) = self.borrow2(a, dst)?;
                         cpy(a, dst, buf_a, buf_dst);
+                    }
+                    crate::op::BinaryOp::GetRows => {
+                        let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
+                        get_rows(a, b, dst, buf_a, buf_b, buf_dst);
                     }
                     _ => todo!(),
                 }
