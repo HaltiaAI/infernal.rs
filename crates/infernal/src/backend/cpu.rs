@@ -1,9 +1,3 @@
-mod diag_mask_inf;
-mod relu;
-mod rmsnorm;
-mod silu;
-mod softmax;
-
 use self::{
     diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax,
 };
@@ -13,6 +7,12 @@ use super::{
     Backend, BackendBuf, ComputeError, DanglingTensor, MemoryLimitTooLow,
 };
 use crate::{op::UnaryOp, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
+
+mod diag_mask_inf;
+mod relu;
+mod rmsnorm;
+mod silu;
+mod softmax;
 
 pub struct Cpu {
     page_cache: paging::PageCache<CpuDevice>,
