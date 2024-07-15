@@ -1,19 +1,14 @@
 use self::{
-    add::add, copy::copy, diag_mask_inf::diag_mask_inf, get_rows::get_rows, matmul::matmul,
-    mul::mul, relu::relu, rmsnorm::rms_norm, scale::scale, silu::silu, softmax::softmax,
+    diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax, add::add
 };
 use super::{
     paging,
     paging::{Device, DeviceInfo},
     Backend, BackendBuf, ComputeError, DanglingTensor, MemoryLimitTooLow,
 };
-use crate::{
-    op::{BinaryOp, UnaryOp},
-    BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc,
-};
+use crate::{op::{UnaryOp, BinaryOp}, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
 
 mod add;
-mod copy;
 mod diag_mask_inf;
 mod get_rows;
 mod matmul;
@@ -166,36 +161,18 @@ impl Cpu {
                 let a = ctx.get_tensor(a)?;
                 let b = ctx.get_tensor(b)?;
 
+                let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
+
                 match op {
-                    BinaryOp::Add => {
-                        let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
+                    crate::op::BinaryOp::Add => {
                         add(a, b, dst, buf_a, buf_b, buf_dst);
-                    }
-                    BinaryOp::Mul => {
-                        let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
-                        mul(a, b, dst, buf_a, buf_b, buf_dst);
-                    }
-                    BinaryOp::Copy => {
-                        let (buf_a, buf_dst) = self.borrow2(a, dst)?;
-                        copy(a, dst, buf_a, buf_dst);
-                    }
-                    BinaryOp::GetRows => {
-                        let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
-                        get_rows(a, dst, buf_a, buf_b, buf_dst);
-                    }
-                    BinaryOp::Scale => {
-                        let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
-                        scale(buf_a, buf_b, buf_dst);
-                    }
-                    BinaryOp::Matmul => {
-                        let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
-                        matmul::<f32, f32, f32>(a, b, dst, buf_a, buf_b, buf_dst);
                     }
                     _ => todo!(),
                 }
 
                 Ok(())
             }
+            _ => return Ok(()),
         }
     }
 }
