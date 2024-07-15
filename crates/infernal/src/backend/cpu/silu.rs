@@ -20,9 +20,19 @@ mod tests {
     };
     use approx::assert_relative_eq;
 
+    fn create_backend() -> impl Backend {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "test-cpu-with-metal")] {
+                crate::backend::Metal::new().unwrap()
+            } else {
+                Cpu::new()
+            }
+        }
+    }
+
     #[test]
     fn test_silu_cpu() -> anyhow::Result<()> {
-        let mut backend = Cpu::new();
+        let mut backend = create_backend();
         let mut tb = TensorBuilder::prealloc(1024 * 1024)?;
 
         let input_data = vec![-2.0f32, -1.0, 0.0, 1.0];

@@ -43,13 +43,19 @@ mod tests {
     };
     use approx::assert_relative_eq;
 
-    fn create_cpu_backend() -> Cpu {
-        Cpu::new()
+    fn create_backend() -> impl Backend {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "test-cpu-with-metal")] {
+                crate::backend::Metal::new().unwrap()
+            } else {
+                Cpu::new()
+            }
+        }
     }
 
     #[test]
-    fn softmax_cpu() -> anyhow::Result<()> {
-        let mut backend = create_cpu_backend();
+    fn softmax_1d() -> anyhow::Result<()> {
+        let mut backend = create_backend();
         let mut tb = TensorBuilder::prealloc(1024 * 1024)?;
 
         // Test case 1: Simple 1D softmax
@@ -77,8 +83,8 @@ mod tests {
     }
 
     #[test]
-    fn softmax_2d_cpu() -> anyhow::Result<()> {
-        let mut backend = create_cpu_backend();
+    fn softmax_2d() -> anyhow::Result<()> {
+        let mut backend = create_backend();
         let mut tb = TensorBuilder::prealloc(1024 * 1024)?;
 
         // Test case 2: 2D softmax

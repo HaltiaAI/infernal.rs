@@ -49,12 +49,17 @@ mod test {
         let elems = res.elements::<f32>(&*backend);
 
         let inf = f32::NEG_INFINITY;
+
+        #[rustfmt::skip]
         let expected = [
-            12.3, inf, inf, inf, inf, inf, inf, inf, 12.3, 12.3, inf, inf, inf, inf, inf, inf,
-            12.3, 12.3, 12.3, inf, inf, inf, inf, inf, 12.3, 12.3, 12.3, 12.3, inf, inf, inf, inf,
-            12.3, 12.3, 12.3, 12.3, 12.3, inf, inf, inf, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3, inf,
-            inf, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3, inf, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3,
-            12.3, 12.3,
+            12.3,  inf,  inf,  inf,  inf,  inf,  inf,  inf,
+            12.3, 12.3,  inf,  inf,  inf,  inf,  inf,  inf,
+            12.3, 12.3, 12.3,  inf,  inf,  inf,  inf,  inf,
+            12.3, 12.3, 12.3, 12.3,  inf,  inf,  inf,  inf,
+            12.3, 12.3, 12.3, 12.3, 12.3,  inf,  inf,  inf,
+            12.3, 12.3, 12.3, 12.3, 12.3, 12.3,  inf,  inf,
+            12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3,  inf,
+            12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3,
         ];
 
         assert_eq!(elems, expected);
@@ -64,7 +69,12 @@ mod test {
 
     #[test]
     fn test_cpu_diagmask() -> anyhow::Result<()> {
+        #[cfg(feature = "test-cpu-with-metal")]
+        let mut backend = crate::backend::Metal::new().unwrap();
+
+        #[cfg(not(feature = "test-cpu-with-metal"))]
         let mut backend = Cpu::new();
+
 
         diag_mask_inf(&mut backend)
     }
