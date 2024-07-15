@@ -6,20 +6,22 @@ pub(crate) fn add(src1_tensor: &Tensor, src2_tensor: &Tensor, dst_tensor: &Tenso
     let src2 = src2.cast::<f32>();
     let dst = dst.cast_mut::<f32>();
 
-    let src1_dims = &src1_tensor.dims;
-    let src2_dims = &src2_tensor.dims;
-    let dst_dims = &dst_tensor.dims;
+    let [src1_cols, src1_rows, src1_depth, _] = &src1_tensor.dims;
+    let [src2_cols, src2_rows, src2_depth, _] = &src2_tensor.dims;
+    let [dst_cols, dst_rows, dst_depth, _] = &dst_tensor.dims;
 
-    for i in 0..dst_dims[0] {
-        for j in 0..dst_dims[1] {
-            for k in 0..dst_dims[2] {
-                let a_idx = (i % src1_dims[0]) * (src1_dims[1] * src1_dims[2]) +
-                    (j % src1_dims[1]) * src1_dims[2] +
-                    (k % src1_dims[2]);
-                let b_idx = (i % src2_dims[0]) * (src2_dims[1] * src2_dims[2]) +
-                    (j % src2_dims[1]) * src2_dims[2] +
-                    (k % src2_dims[2]);
-                let out_idx = i * (dst_dims[1] * dst_dims[2]) + j * dst_dims[2] + k;
+    for i in 0..*dst_cols {
+        for j in 0..*dst_rows {
+            for k in 0..*dst_depth {
+                let a_idx = (i % src1_cols) * (src1_rows * src1_depth) +
+                    (j % src1_rows) * src1_depth +
+                    (k % src1_depth);
+
+                let b_idx = (i % src2_cols) * (src2_rows * src2_depth) +
+                    (j % src2_rows) * src2_depth +
+                    (k % src2_depth);
+
+                let out_idx = i * (dst_rows * dst_depth) + j * dst_depth + k;
 
                 dst[out_idx] = src1[a_idx] + src2[b_idx];
             }
