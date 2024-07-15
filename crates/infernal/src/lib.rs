@@ -1,3 +1,5 @@
+#![feature(f16)]
+
 use std::collections::HashMap;
 
 use thiserror::Error;
