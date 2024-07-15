@@ -1,6 +1,6 @@
 use self::{
     diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax, add::add,
-    cpy::cpy, mul::mul, get_rows::get_rows, scale::scale,
+    cpy::cpy, mul::mul, get_rows::get_rows, scale::scale, matmul::matmul,
 };
 use super::{
     paging,
@@ -19,6 +19,7 @@ mod rmsnorm;
 mod scale;
 mod silu;
 mod softmax;
+mod matmul;
 
 pub struct Cpu {
     page_cache: paging::PageCache<CpuDevice>,
@@ -182,6 +183,10 @@ impl Cpu {
                     crate::op::BinaryOp::Scale => {
                         let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
                         scale(buf_a, buf_b, buf_dst);
+                    }
+                    crate::op::BinaryOp::Matmul => {
+                        let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
+                        matmul::<f32, f32, f32>(a, b, dst, buf_a, buf_b, buf_dst);
                     }
                     _ => todo!(),
                 }
