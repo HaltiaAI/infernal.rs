@@ -1,16 +1,30 @@
-use crate::{BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
-
+use self::{
+    diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax,
+};
 use super::{
     paging,
     paging::{Device, DeviceInfo},
     Backend, BackendBuf, ComputeError, DanglingTensor, MemoryLimitTooLow,
 };
+use crate::{op::UnaryOp, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
+
+mod diag_mask_inf;
+mod relu;
+mod rmsnorm;
+mod silu;
+mod softmax;
 
 pub struct Cpu {
     page_cache: paging::PageCache<CpuDevice>,
 }
 
 impl Cpu {
+    pub fn new() -> Self {
+        Self {
+            page_cache: paging::PageCache::new(CpuDevice.info().max_buf_size, &CpuDevice),
+        }
+    }
+
     /// Method borrows two tensors backing memory store. `t0` is borrowed immutably and is used as
     /// the src tensor, whule `t1` is borrowed mutably and is used as the `dst` tensor.
     ///
@@ -66,8 +80,25 @@ impl Cpu {
                 let (buf_a, buf_dst) = self.borrow2(a, dst)?;
 
                 match op {
+                    UnaryOp::Softmax { scale, .. } => {
+                        softmax(a, buf_a, buf_dst, scale);
+                    }
+                    UnaryOp::Relu => {
+                        relu(buf_a, buf_dst);
+                    }
+                    UnaryOp::Silu => {
+                        silu(buf_a, buf_dst);
+                    }
+                    UnaryOp::RmsNorm { eps } => {
+                        rms_norm(a, buf_a, buf_dst, eps);
+                    }
+                    UnaryOp::DiagMaskInf { n_past } => {
+                        diag_mask_inf(a, buf_a, buf_dst, n_past);
+                    }
                     _ => todo!(),
                 }
+
+                Ok(())
             }
             _ => return Ok(()),
         }
@@ -126,6 +157,7 @@ impl Backend for Cpu {
 
                 dst.visit_nodes(ctx, |n| {
                     new_vram_use += self.page_cache.stage(&CpuDevice, n.buf_id);
+                    self.page_cache.load(&CpuDevice, n.buf_id);
                 });
 
                 self.dispatch_op(ctx, dst)?;
@@ -145,8 +177,8 @@ impl Device for CpuDevice {
         let info = sysinfo::System::new_all();
 
         DeviceInfo {
-            mem_limit: info.available_memory() as _,
-            max_buf_size: info.available_memory() as _,
+            mem_limit: info.total_memory() as _,
+            max_buf_size: info.total_memory() as _,
         }
     }
 

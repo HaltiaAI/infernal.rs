@@ -15,7 +15,7 @@ categories.workspace = true
 publish.workspace = true
 
 [dependencies]
-cfg-if.workspace = true
+cfg-if = "1.0.0"
 gguf.workspace = true
 libc.workspace = true
 memmap2.workspace = true
@@ -39,6 +39,7 @@ ggml = { workspace = true, features = ["metal"] }
 tracing-subscriber.workspace = true
 dirs.workspace = true
 llama_cpp_sys.workspace = true
+approx = "0.5"
 
 [[bench]]
 name = "matmul"
@@ -50,3 +51,7 @@ default = ["graph-inspect"]
 graph-inspect = ["serde", "serde_json"]
 # TODO
 metal = []
+
+# NOTE: Enable this flag to run all the CPU backend unit tests with the Metal backend,
+# this is to ensure the correctness of the CPU backend against the Metal backend
+test-cpu-with-metal = []
