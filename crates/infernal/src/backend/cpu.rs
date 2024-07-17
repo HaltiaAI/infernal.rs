@@ -1,6 +1,6 @@
 use self::{
     diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax, add::add,
-    cpy::cpy, mul::mul, get_rows::get_rows, scale::scale, matmul::matmul,
+    cpy::cpy, mul::mul, get_rows::get_rows, scale::scale, matmul::matmul, rope::rope,
 };
 use super::{
     paging,
@@ -20,6 +20,7 @@ mod scale;
 mod silu;
 mod softmax;
 mod matmul;
+mod rope;
 
 pub struct Cpu {
     page_cache: paging::PageCache<CpuDevice>,
@@ -153,6 +154,9 @@ impl Cpu {
                     }
                     UnaryOp::DiagMaskInf { n_past } => {
                         diag_mask_inf(a, buf_a, buf_dst, n_past);
+                    }
+                    UnaryOp::Rope(params) => {
+                        rope(a, dst, buf_a, buf_dst, params);
                     }
                     _ => todo!(),
                 }
