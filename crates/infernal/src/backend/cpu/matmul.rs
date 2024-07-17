@@ -48,11 +48,11 @@ where
 
                 let sum = row1.iter().zip(row2.iter()).map(|(&x, &y)| x * y).sum::<TOut>();
 
-                let dst_idx = depth * (dst_tensor.depth_stride() / tout_size)
-                    + r2 * (dst_tensor.row_stride() / tout_size)
-                    + r1;
+                let dst_idx = depth * dst_tensor.depth_stride()
+                    + r2 * dst_tensor.row_stride()
+                    + r1 * dst_tensor.col_stride();
 
-                dst[dst_idx] = sum;
+                dst[dst_idx / 4] = sum;
             }
         }
     }
@@ -100,7 +100,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn matmul_cpu_3d() -> anyhow::Result<()> {
         let mut backend = Cpu::new();
         //let mut backend = Metal::new()?;
