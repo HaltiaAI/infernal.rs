@@ -1,7 +1,8 @@
-use crate::buf::SliceCast;
-use crate::Tensor;
-use crate::op::RopeExpanded;
-use crate::op::RopeCustom;
+use crate::{
+    buf::SliceCast,
+    op::{RopeCustom, RopeExpanded},
+    Tensor,
+};
 
 use std::f32::consts::FRAC_2_PI;
 
@@ -18,9 +19,19 @@ fn rope_yarn_corr_factor(n_dims: i32, n_ctx_orig: i32, n_rot: f32, base: f32) ->
 }
 
 #[inline]
-fn rope_yarn_corr_dims(n_dims: i32, n_ctx_orig: i32, freq_base: f32, beta_fast: f32, beta_slow: f32) -> [f32; 2] {
-    let start = rope_yarn_corr_factor(n_dims, n_ctx_orig, beta_fast, freq_base).floor().max(0.0);
-    let end = rope_yarn_corr_factor(n_dims, n_ctx_orig, beta_slow, freq_base).ceil().min(n_dims as f32 - 1.0);
+fn rope_yarn_corr_dims(
+    n_dims: i32,
+    n_ctx_orig: i32,
+    freq_base: f32,
+    beta_fast: f32,
+    beta_slow: f32,
+) -> [f32; 2] {
+    let start = rope_yarn_corr_factor(n_dims, n_ctx_orig, beta_fast, freq_base)
+        .floor()
+        .max(0.0);
+    let end = rope_yarn_corr_factor(n_dims, n_ctx_orig, beta_slow, freq_base)
+        .ceil()
+        .min(n_dims as f32 - 1.0);
 
     [start, end]
 }
@@ -28,7 +39,14 @@ fn rope_yarn_corr_dims(n_dims: i32, n_ctx_orig: i32, freq_base: f32, beta_fast: 
 // YaRN algorithm based on LlamaYaRNScaledRotaryEmbedding.py from https://github.com/jquesnelle/yarn
 // MIT licensed. Copyright (c) 2023 Jeffrey Quesnelle and Bowen Peng.
 #[inline]
-fn rope_yarn(theta_extrap: f32, freq_scale: f32, corr_dims: [f32; 2], i0: f32, ext_factor: f32, mut mscale: f32) -> (f32, f32) {
+fn rope_yarn(
+    theta_extrap: f32,
+    freq_scale: f32,
+    corr_dims: [f32; 2],
+    i0: f32,
+    ext_factor: f32,
+    mut mscale: f32,
+) -> (f32, f32) {
     let theta_interp = freq_scale * theta_extrap;
     let mut theta = theta_interp;
 
@@ -46,8 +64,17 @@ fn rope_yarn(theta_extrap: f32, freq_scale: f32, corr_dims: [f32; 2], i0: f32, e
     (cos_theta, sin_theta)
 }
 
-pub(crate) fn rope(src_tensor: &Tensor, dst_tensor: &Tensor, src: &[u8], dst: &mut [u8], params: RopeExpanded) {
-    let RopeCustom { freq_base, freq_scale } = params.custom;
+pub(crate) fn rope(
+    src_tensor: &Tensor,
+    dst_tensor: &Tensor,
+    src: &[u8],
+    dst: &mut [u8],
+    params: RopeExpanded,
+) {
+    let RopeCustom {
+        freq_base,
+        freq_scale,
+    } = params.custom;
     let RopeExpanded { n_past, n_dims, .. } = params;
 
     let src = src.cast::<f32>();
@@ -95,12 +122,11 @@ pub(crate) fn rope(src_tensor: &Tensor, dst_tensor: &Tensor, src: &[u8], dst: &m
 mod tests {
     use super::*;
     use crate::{
-        backend::cpu::Cpu,
-        backend::Metal,
+        backend::{cpu::Cpu, Metal},
         builder::*,
         layout::{Type, D2},
         op::Rope,
-        Backend, ComputeGraph
+        Backend, ComputeGraph,
     };
     use approx::assert_relative_eq;
 
@@ -129,13 +155,21 @@ mod tests {
         graph.expand_forward(r0, &ctx)?;
         graph.find_exec_plan(backend.mem_limit(), &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
-        
+
         let result = ctx[r0].elements::<f32>(&backend);
 
         // Property 1: The norm of each row should be preserved
         for i in 0..4 {
-            let input_norm: f32 = src1[i*4..(i+1)*4].iter().map(|&x| x*x).sum::<f32>().sqrt();
-            let result_norm: f32 = result[i*4..(i+1)*4].iter().map(|&x| x*x).sum::<f32>().sqrt();
+            let input_norm: f32 = src1[i * 4..(i + 1) * 4]
+                .iter()
+                .map(|&x| x * x)
+                .sum::<f32>()
+                .sqrt();
+            let result_norm: f32 = result[i * 4..(i + 1) * 4]
+                .iter()
+                .map(|&x| x * x)
+                .sum::<f32>()
+                .sqrt();
             assert_relative_eq!(input_norm, result_norm, epsilon = 1e-5);
         }
 
@@ -167,13 +201,14 @@ mod tests {
         graph.expand_forward(r0, &ctx)?;
         graph.find_exec_plan(backend.mem_limit(), &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
-        
+
         let result = ctx[r0].elements::<f32>(&backend);
 
         // Property 2: The dot product between the first half and second half of each row should be zero
         for i in 0..4 {
-            let dot_product: f32 = result[i*4..i*4+4].iter()
-                .zip(result[i*4+4..(i+1)*4].iter())
+            let dot_product: f32 = result[i * 4..i * 4 + 4]
+                .iter()
+                .zip(result[i * 4 + 4..(i + 1) * 4].iter())
                 .map(|(&a, &b)| a * b)
                 .sum();
 
@@ -189,7 +224,9 @@ mod tests {
         //let mut backend = Metal::new()?;
         let mut tb = TensorBuilder::prealloc(128 * 1024 * 1024)?;
 
-        let input = tb.new_tensor(D2 { rows: 2, cols: 4 }.with_type(Type::F32)).unwrap();
+        let input = tb
+            .new_tensor(D2 { rows: 2, cols: 4 }.with_type(Type::F32))
+            .unwrap();
         tb.fill_with(input, || rand::random::<f32>());
 
         let rope_args = Rope {
@@ -202,10 +239,26 @@ mod tests {
 
         // Apply RoPE twice with different n_past
         let result1 = tb.rope(input, rope_args).unwrap();
-        let result2 = tb.rope(result1, Rope { n_past: 1, ..rope_args }).unwrap();
+        let result2 = tb
+            .rope(
+                result1,
+                Rope {
+                    n_past: 1,
+                    ..rope_args
+                },
+            )
+            .unwrap();
 
         // Apply RoPE once with n_past = 1
-        let result3 = tb.rope(input, Rope { n_past: 1, ..rope_args }).unwrap();
+        let result3 = tb
+            .rope(
+                input,
+                Rope {
+                    n_past: 1,
+                    ..rope_args
+                },
+            )
+            .unwrap();
 
         let (ctx, _) = tb.finish(&mut backend)?;
         let mut graph = ComputeGraph::default();
