@@ -29,6 +29,7 @@ fn rope_yarn_corr_dims(
     let start = rope_yarn_corr_factor(n_dims, n_ctx_orig, beta_fast, freq_base)
         .floor()
         .max(0.0);
+
     let end = rope_yarn_corr_factor(n_dims, n_ctx_orig, beta_slow, freq_base)
         .ceil()
         .min(n_dims as f32 - 1.0);
@@ -99,12 +100,14 @@ pub(crate) fn rope(
                         + depth * src_tensor.depth_stride()
                         + row * src_tensor.row_stride()
                         + col * src_tensor.col_stride();
+
                     let src_offs = src_offs / 4;
 
                     let dst_offs = batch * dst_tensor.batch_stride()
                         + depth * dst_tensor.depth_stride()
                         + row * dst_tensor.row_stride()
                         + col * dst_tensor.col_stride();
+
                     let dst_offs = dst_offs / 4;
 
                     let x0 = src[src_offs];
@@ -124,7 +127,7 @@ mod tests {
     use crate::{
         backend::{cpu::Cpu, Metal},
         builder::*,
-        layout::{Type, D2},
+        layout::{Type, D2, D3},
         op::Rope,
         Backend, ComputeGraph,
     };
@@ -273,6 +276,48 @@ mod tests {
 
         for (v2, v3) in data2.iter().zip(data3.iter()) {
             assert_relative_eq!(v2, v3, epsilon = 1e-5);
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn rope_cpu_metal_equivalence() -> anyhow::Result<()> {
+        let backend_cpu = Cpu::new();
+        let backend_metal = Metal::new()?;
+
+        fn run(mut backend: impl Backend) -> anyhow::Result<Vec<f32>> {
+            let mut tb = TensorBuilder::prealloc(128 * 1024 * 1024)?;
+
+            let src1_t = tb.new_tensor(D3 { depth: 2, cols: 4, rows: 4 }.with_type(Type::F32))?;
+            let src1 = (0..32).map(|x| x as f32).collect::<Vec<_>>();
+
+            tb.copy_data_from::<f32>(src1_t, &src1);
+
+            let r0_args = Rope {
+                n_past: 4,
+                n_dims: 4,
+                n_ctx: 32,
+                mode: 0,
+                custom: None,
+            };
+            let r0 = tb.rope(src1_t, r0_args)?;
+
+            let (ctx, _) = tb.finish(&mut backend)?;
+            let mut graph = ComputeGraph::default();
+            graph.expand_forward(r0, &ctx)?;
+            graph.find_exec_plan(backend.mem_limit(), &ctx)?;
+            backend.compute_graph(&graph, &ctx)?;
+
+            let result = ctx[r0].elements::<f32>(&backend);
+            Ok(result.into())
+        }
+
+        let result_metal = run(backend_metal)?;
+        let result_cpu = run(backend_cpu)?;
+
+        for (x, y) in result_metal.iter().zip(result_cpu.iter()) {
+            assert_relative_eq!(x, y, epsilon = 1e-5);
         }
 
         Ok(())
