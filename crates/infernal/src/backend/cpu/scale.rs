@@ -39,9 +39,7 @@ mod tests {
         let dst = tb.scale(src1_t, src2_t)?;
 
         let (ctx, _) = tb.finish(&mut backend)?;
-        let mut graph = ComputeGraph::default();
-        graph.expand_forward(dst, &ctx)?;
-        graph.find_exec_plan(backend.mem_limit(), &ctx)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
         
         let expected = vec![2., 4., 6., 8.];

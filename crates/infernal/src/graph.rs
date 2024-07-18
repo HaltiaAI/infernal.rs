@@ -50,7 +50,7 @@ impl ComputeGraph<ConcurOptimizer> {
     pub fn forward_expand(
         mem_limit: usize,
         output: TensorId,
-        ctx: &impl TensorSrc,
+        ctx: &impl TensorSrc
     ) -> Result<Self, TensorNotFound> {
         let mut this = ComputeGraph::default();
 

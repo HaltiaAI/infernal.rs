@@ -1,29 +1,29 @@
 use crate::buf::SliceCast;
 use crate::Tensor;
 
-pub(crate) fn mul(src1_tensor: &Tensor, src2_tensor: &Tensor, dst_tensor: &Tensor, src1: &[u8], src2: &[u8], dst: &mut [u8]) {
+pub(crate) fn mul(src0_tensor: &Tensor, src1_tensor: &Tensor, dst_tensor: &Tensor, src0: &[u8], src1: &[u8], dst: &mut [u8]) {
+    let src0 = src0.cast::<f32>();
     let src1 = src1.cast::<f32>();
-    let src2 = src2.cast::<f32>();
     let dst = dst.cast_mut::<f32>();
 
+    let [src0_cols, src0_rows, src0_depth, _] = &src0_tensor.dims;
     let [src1_cols, src1_rows, src1_depth, _] = &src1_tensor.dims;
-    let [src2_cols, src2_rows, src2_depth, _] = &src2_tensor.dims;
     let [dst_cols, dst_rows, dst_depth, _] = &dst_tensor.dims;
 
     for i in 0..*dst_cols {
         for j in 0..*dst_rows {
             for k in 0..*dst_depth {
-                let a_idx = (i % src1_cols) * (src1_rows * src1_depth) +
+                let a_idx = (i % src0_cols) * (src0_rows * src0_depth) +
+                    (j % src0_rows) * src0_depth +
+                    (k % src0_depth);
+
+                let b_idx = (i % src1_cols) * (src1_rows * src1_depth) +
                     (j % src1_rows) * src1_depth +
                     (k % src1_depth);
 
-                let b_idx = (i % src2_cols) * (src2_rows * src2_depth) +
-                    (j % src2_rows) * src2_depth +
-                    (k % src2_depth);
-
                 let out_idx = i * (dst_rows * dst_depth) + j * dst_depth + k;
 
-                dst[out_idx] = src1[a_idx] * src2[b_idx];
+                dst[out_idx] = src0[a_idx] * src1[b_idx];
             }
         }
     }
@@ -56,9 +56,7 @@ mod tests {
         let dst = tb.mul(src1_t, src2_t)?;
 
         let (ctx, _) = tb.finish(&mut backend)?;
-        let mut graph = ComputeGraph::default();
-        graph.expand_forward(dst, &ctx)?;
-        graph.find_exec_plan(backend.mem_limit(), &ctx)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
         
         let expected = vec![2., 1., 2., 1.];
@@ -86,9 +84,7 @@ mod tests {
         let dst = tb.mul(src1_t, src2_t)?;
 
         let (ctx, _) = tb.finish(&mut backend)?;
-        let mut graph = ComputeGraph::default();
-        graph.expand_forward(dst, &ctx)?;
-        graph.find_exec_plan(backend.mem_limit(), &ctx)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
         
         let expected = vec![2., 1., 2., 1., 2., 3.];

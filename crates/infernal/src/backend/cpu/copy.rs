@@ -1,4 +1,5 @@
-use crate::{buf::SliceCast, Tensor};
+use crate::buf::SliceCast;
+use crate::Tensor;
 
 pub(crate) fn copy(src_tensor: &Tensor, dst_tensor: &Tensor, src: &[u8], dst: &mut [u8]) {
     let src = src.cast::<f32>();
@@ -22,15 +23,13 @@ pub(crate) fn copy(src_tensor: &Tensor, dst_tensor: &Tensor, src: &[u8], dst: &m
                 let i1 = (n - i3 * total_elements - i2 * cols * rows) / cols;
                 let i0 = n - i3 * total_elements - i2 * cols * rows - i1 * cols;
 
-                let dst_offs =
-                    (i3 * nb13 + i2 * nb12 + i1 * nb11 + i0 * nb10) / std::mem::size_of::<f32>();
+                let dst_offs = (i3 * nb13 + i2 * nb12 + i1 * nb11 + i0 * nb10) / std::mem::size_of::<f32>();
 
                 for col in 0..src_tensor.cols() {
-                    let src_idx = (batch * nb03 + depth * nb02 + row * nb01 + col * nb00)
-                        / std::mem::size_of::<f32>();
+                    let src_idx = (batch * nb03 + depth * nb02 + row * nb01 + col * nb00) / std::mem::size_of::<f32>();
 
                     dst[dst_offs + col] = src[src_idx];
-                }
+                } 
             }
         }
     }
@@ -40,10 +39,11 @@ pub(crate) fn copy(src_tensor: &Tensor, dst_tensor: &Tensor, src: &[u8], dst: &m
 mod tests {
     use super::*;
     use crate::{
-        backend::{cpu::Cpu, Metal},
+        backend::cpu::Cpu,
+        backend::Metal,
         builder::*,
         layout::{Type, D1, D2, D3},
-        Backend, ComputeGraph,
+        Backend, ComputeGraph
     };
 
     #[test]
@@ -63,12 +63,11 @@ mod tests {
         let (ctx, _) = tb.finish(&mut backend)?;
         let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
-
+        
         let result = ctx[dst].elements::<f32>(&backend);
 
         assert_eq!(result, src1);
-        Ok(())
-    }
+Ok(()) }
 
     #[test]
     fn copy_2d() -> anyhow::Result<()> {
@@ -87,7 +86,7 @@ mod tests {
         let (ctx, _) = tb.finish(&mut backend)?;
         let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
-
+        
         let result = ctx[dst].elements::<f32>(&backend);
 
         assert_eq!(result, src1);
@@ -113,7 +112,7 @@ mod tests {
         let (ctx, _) = tb.finish(&mut backend)?;
         let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
-
+        
         let result = ctx[dst].elements::<f32>(&backend);
 
         assert_eq!(result, src1);
