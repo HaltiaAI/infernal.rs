@@ -1,25 +1,28 @@
 use self::{
-    diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax, add::add,
-    copy::copy, mul::mul, get_rows::get_rows, scale::scale, matmul::matmul,
+    add::add, copy::copy, diag_mask_inf::diag_mask_inf, get_rows::get_rows, matmul::matmul,
+    mul::mul, relu::relu, rmsnorm::rms_norm, scale::scale, silu::silu, softmax::softmax,
 };
 use super::{
     paging,
     paging::{Device, DeviceInfo},
     Backend, BackendBuf, ComputeError, DanglingTensor, MemoryLimitTooLow,
 };
-use crate::{op::{UnaryOp, BinaryOp}, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
+use crate::{
+    op::{BinaryOp, UnaryOp},
+    BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc,
+};
 
 mod add;
 mod copy;
-mod mul;
 mod diag_mask_inf;
 mod get_rows;
+mod matmul;
+mod mul;
 mod relu;
 mod rmsnorm;
 mod scale;
 mod silu;
 mod softmax;
-mod matmul;
 
 pub struct Cpu {
     page_cache: paging::PageCache<CpuDevice>,

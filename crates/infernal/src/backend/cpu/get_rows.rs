@@ -1,7 +1,12 @@
-use crate::buf::SliceCast;
-use crate::Tensor;
+use crate::{buf::SliceCast, Tensor};
 
-pub(crate) fn get_rows(src_tensor: &Tensor, dst_tensor: &Tensor, src: &[u8], index: &[u8], dst: &mut [u8]) {
+pub(crate) fn get_rows(
+    src_tensor: &Tensor,
+    dst_tensor: &Tensor,
+    src: &[u8],
+    index: &[u8],
+    dst: &mut [u8],
+) {
     let src = src.cast::<f32>();
     let index = index.cast::<i32>();
     let dst = dst.cast_mut::<f32>();
@@ -22,7 +27,7 @@ mod tests {
         backend::cpu::Cpu,
         builder::*,
         layout::{Type, D1, D2},
-        Backend, ComputeGraph
+        Backend, ComputeGraph,
     };
 
     #[test]
@@ -44,7 +49,7 @@ mod tests {
         let (ctx, _) = tb.finish(&mut backend)?;
         let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
-        
+
         let expected = vec![3., 4., 5., 6., 9., 10.];
         let result = ctx[dst].elements::<f32>(&backend);
 
@@ -53,4 +58,3 @@ mod tests {
         Ok(())
     }
 }
-

@@ -19,7 +19,7 @@ mod tests {
         backend::cpu::Cpu,
         builder::*,
         layout::{Type, D1, D2, D3},
-        Backend, ComputeGraph
+        Backend, ComputeGraph,
     };
 
     #[test]
@@ -41,7 +41,7 @@ mod tests {
         let (ctx, _) = tb.finish(&mut backend)?;
         let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
-        
+
         let expected = vec![2., 4., 6., 8.];
         let result = ctx[dst].elements::<f32>(&backend);
 

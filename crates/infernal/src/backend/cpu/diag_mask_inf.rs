@@ -73,7 +73,6 @@ mod test {
         #[cfg(not(feature = "test-cpu-with-metal"))]
         let mut backend = Cpu::new();
 
-
         diag_mask_inf(&mut backend)
     }
 
