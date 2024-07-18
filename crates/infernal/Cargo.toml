@@ -15,7 +15,7 @@ categories.workspace = true
 publish.workspace = true
 
 [dependencies]
-cfg-if = "1.0.0"
+cfg-if.workspace = true
 gguf.workspace = true
 libc.workspace = true
 memmap2.workspace = true

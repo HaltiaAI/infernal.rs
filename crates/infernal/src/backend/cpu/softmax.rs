@@ -67,9 +67,7 @@ mod tests {
         let softmax = tb.softmax(input)?;
 
         let (ctx, _) = tb.finish(&mut backend)?;
-        let mut graph = ComputeGraph::default();
-        graph.expand_forward(softmax, &ctx)?;
-        graph.find_exec_plan(backend.mem_limit(), &ctx).unwrap();
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), softmax, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
 
         let result = ctx[softmax].elements::<f32>(&backend);
@@ -85,8 +83,6 @@ mod tests {
     #[test]
     fn softmax_2d() -> anyhow::Result<()> {
         let mut backend = create_backend();
-        let mut tb = TensorBuilder::prealloc(1024 * 1024)?;
-
         // Test case 2: 2D softmax
         let mut tb = TensorBuilder::prealloc(1024 * 1024)?;
         let input_data = vec![1.0f32, 2.0, 3.0, 4.0, 5.0, 6.0];
@@ -98,9 +94,7 @@ mod tests {
 
         let (ctx, _) = tb.finish(&mut backend)?;
 
-        let mut graph = ComputeGraph::default();
-        graph.expand_forward(softmax, &ctx)?;
-        graph.find_exec_plan(backend.mem_limit(), &ctx)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), softmax, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
 
         let result = ctx[softmax].elements::<f32>(&backend);

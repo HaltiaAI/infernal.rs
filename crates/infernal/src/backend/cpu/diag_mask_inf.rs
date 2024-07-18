@@ -40,10 +40,8 @@ mod test {
 
         let (ctx, _) = tb.finish(backend)?;
 
-        let mut gf = ComputeGraph::default();
-        gf.expand_forward(result, &ctx)?;
-        gf.find_exec_plan(backend.mem_limit(), &ctx)?;
-        backend.compute_graph(&gf, &ctx)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), result, &ctx)?;
+        backend.compute_graph(&graph, &ctx)?;
 
         let res = &ctx[result];
         let elems = res.elements::<f32>(&*backend);
@@ -77,5 +75,46 @@ mod test {
 
 
         diag_mask_inf(&mut backend)
+    }
+
+    #[test]
+    fn diag_mask_inf_n_past() -> anyhow::Result<()> {
+        let mut backend = Cpu::new();
+        let layout = Layout::new_2d(8, 8, Type::F32);
+
+        let mut tb = TensorBuilder::<_, NoSrc>::prealloc(8 * 4 * 4 * 8)?
+            .with_name("diag_mask_test")
+            .with_auto_op_names(AutoOpName::Expanded { with_id: false });
+
+        let tensor = tb.new_tensor(layout)?;
+        tb.fill_2d_f32(tensor, 12.3);
+
+        let result = tb.diag_mask_inf(tensor, 2)?;
+
+        let (ctx, _) = tb.finish(&mut backend)?;
+
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), result, &ctx)?;
+        backend.compute_graph(&graph, &ctx)?;
+
+        let res = &ctx[result];
+        let elems = res.elements::<f32>(&backend);
+
+        let inf = f32::NEG_INFINITY;
+
+        #[rustfmt::skip]
+        let expected = [
+            12.3, 12.3, 12.3,  inf,  inf,  inf,  inf,  inf,
+            12.3, 12.3, 12.3, 12.3,  inf,  inf,  inf,  inf,
+            12.3, 12.3, 12.3, 12.3, 12.3,  inf,  inf,  inf,
+            12.3, 12.3, 12.3, 12.3, 12.3, 12.3,  inf,  inf,
+            12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3,  inf,
+            12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3,
+            12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3,
+            12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3, 12.3
+        ];
+
+        assert_eq!(elems, expected);
+
+        Ok(())
     }
 }

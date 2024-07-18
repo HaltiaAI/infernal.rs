@@ -1,6 +1,6 @@
 use self::{
     diag_mask_inf::diag_mask_inf, relu::relu, rmsnorm::rms_norm, silu::silu, softmax::softmax, add::add,
-    cpy::cpy, mul::mul, get_rows::get_rows, scale::scale, matmul::matmul,
+    copy::copy, mul::mul, get_rows::get_rows, scale::scale, matmul::matmul,
 };
 use super::{
     paging,
@@ -10,7 +10,7 @@ use super::{
 use crate::{op::{UnaryOp, BinaryOp}, BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc};
 
 mod add;
-mod cpy;
+mod copy;
 mod mul;
 mod diag_mask_inf;
 mod get_rows;
@@ -174,7 +174,7 @@ impl Cpu {
                     }
                     crate::op::BinaryOp::Copy => {
                         let (buf_a, buf_dst) = self.borrow2(a, dst)?;
-                        cpy(a, dst, buf_a, buf_dst);
+                        copy(a, dst, buf_a, buf_dst);
                     }
                     crate::op::BinaryOp::GetRows => {
                         let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;

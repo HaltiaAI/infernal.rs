@@ -1,36 +1,7 @@
 use crate::buf::SliceCast;
 use crate::Tensor;
 
-trait FloatExt: Sized {
-    #[inline]
-    fn size() -> usize {
-        std::mem::size_of::<Self>()
-    }
-}
-
-trait FloatCast<T>: FloatExt {
-    #[inline]
-    fn cast(self) -> T;
-}
-
-impl FloatExt for f32 {}
-impl FloatExt for f16 {}
-
-impl FloatCast<f32> for f16 {
-    #[inline]
-    fn cast(self) -> f32 {
-        self as _
-    }
-}
-
-impl FloatCast<f32> for f32 {
-    #[inline]
-    fn cast(self) -> f32 {
-        self as _
-    }
-}
-
-pub(crate) fn cpy(src_tensor: &Tensor, dst_tensor: &Tensor, src: &[u8], dst: &mut [u8]) {
+pub(crate) fn copy(src_tensor: &Tensor, dst_tensor: &Tensor, src: &[u8], dst: &mut [u8]) {
     let src = src.cast::<f32>();
     let dst = dst.cast_mut::<f32>();
 
@@ -39,7 +10,7 @@ pub(crate) fn cpy(src_tensor: &Tensor, dst_tensor: &Tensor, src: &[u8], dst: &mu
     let [cols, rows, ..] = &dst_tensor.dims;
     let [nb10, nb11, nb12, nb13] = &dst_tensor.stride;
 
-    let total_elements: usize = src_tensor.dims.iter().product();
+    let total_elements: usize = src_tensor.total_elems();
 
     for batch in 0..src_tensor.batches() {
         for depth in 0..src_tensor.depth() {
@@ -76,7 +47,7 @@ mod tests {
     };
 
     #[test]
-    fn cpy_1d() -> anyhow::Result<()> {
+    fn copy_1d() -> anyhow::Result<()> {
         let mut backend = Cpu::new();
         let mut tb = TensorBuilder::prealloc(256 * 256)?;
 
@@ -90,10 +61,7 @@ mod tests {
         let dst = tb.copy(src1_t, src2_t);
 
         let (ctx, _) = tb.finish(&mut backend)?;
-        let mut graph = ComputeGraph::default();
-
-        graph.expand_forward(dst, &ctx)?;
-        graph.find_exec_plan(backend.mem_limit(), &ctx)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
         
         let result = ctx[dst].elements::<f32>(&backend);
@@ -102,7 +70,7 @@ mod tests {
 Ok(()) }
 
     #[test]
-    fn cpy_2d() -> anyhow::Result<()> {
+    fn copy_2d() -> anyhow::Result<()> {
         let mut backend = Cpu::new();
         let mut tb = TensorBuilder::prealloc(256 * 256)?;
 
@@ -116,9 +84,7 @@ Ok(()) }
         let dst = tb.copy(src1_t, src2_t);
 
         let (ctx, _) = tb.finish(&mut backend)?;
-        let mut graph = ComputeGraph::default();
-        graph.expand_forward(dst, &ctx)?;
-        graph.find_exec_plan(backend.mem_limit(), &ctx)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
         
         let result = ctx[dst].elements::<f32>(&backend);
@@ -129,7 +95,7 @@ Ok(()) }
     }
 
     #[test]
-    fn cpy_2d_diff_dims() -> anyhow::Result<()> {
+    fn copy_2d_diff_dims() -> anyhow::Result<()> {
         let mut backend = Cpu::new();
         //let mut backend = Metal::new()?;
         let mut tb = TensorBuilder::prealloc(256 * 256)?;
@@ -144,9 +110,7 @@ Ok(()) }
         let dst = tb.copy(src1_t, src2_t);
 
         let (ctx, _) = tb.finish(&mut backend)?;
-        let mut graph = ComputeGraph::default();
-        graph.expand_forward(dst, &ctx)?;
-        graph.find_exec_plan(backend.mem_limit(), &ctx)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), dst, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
         
         let result = ctx[dst].elements::<f32>(&backend);

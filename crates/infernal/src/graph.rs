@@ -46,6 +46,21 @@ impl Default for ComputeGraph<ConcurOptimizer> {
     }
 }
 
+impl ComputeGraph<ConcurOptimizer> {
+    pub fn forward_expand(
+        mem_limit: usize,
+        output: TensorId,
+        ctx: &impl TensorSrc
+    ) -> Result<Self, TensorNotFound> {
+        let mut this = ComputeGraph::default();
+
+        this.expand_forward(output, ctx)?;
+        this.find_exec_plan(mem_limit, ctx)?;
+
+        Ok(this)
+    }
+}
+
 impl<O: Optimizer> ComputeGraph<O> {
     #[inline(always)]
     pub fn reuse(mut other: Self) -> Self {
