@@ -167,27 +167,27 @@ impl Cpu {
                 let b = ctx.get_tensor(b)?;
 
                 match op {
-                    crate::op::BinaryOp::Add => {
+                    BinaryOp::Add => {
                         let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
                         add(a, b, dst, buf_a, buf_b, buf_dst);
                     }
-                    crate::op::BinaryOp::Mul => {
+                    BinaryOp::Mul => {
                         let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
                         mul(a, b, dst, buf_a, buf_b, buf_dst);
                     }
-                    crate::op::BinaryOp::Copy => {
+                    BinaryOp::Copy => {
                         let (buf_a, buf_dst) = self.borrow2(a, dst)?;
                         copy(a, dst, buf_a, buf_dst);
                     }
-                    crate::op::BinaryOp::GetRows => {
+                    BinaryOp::GetRows => {
                         let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
                         get_rows(a, dst, buf_a, buf_b, buf_dst);
                     }
-                    crate::op::BinaryOp::Scale => {
+                    BinaryOp::Scale => {
                         let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
                         scale(buf_a, buf_b, buf_dst);
                     }
-                    crate::op::BinaryOp::Matmul => {
+                    BinaryOp::Matmul => {
                         let (buf_a, buf_b, buf_dst) = self.borrow3(a, b, dst)?;
                         matmul::<f32, f32, f32>(a, b, dst, buf_a, buf_b, buf_dst);
                     }
@@ -196,7 +196,6 @@ impl Cpu {
 
                 Ok(())
             }
-            _ => return Ok(()),
         }
     }
 }
