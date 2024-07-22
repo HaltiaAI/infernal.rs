@@ -76,7 +76,13 @@ pub(crate) fn rope(
         freq_base,
         freq_scale,
     } = params.custom;
-    let RopeExpanded { n_past, n_dims, .. } = params;
+
+    let RopeExpanded {
+        n_past,
+        n_dims,
+        mode,
+        ..
+    } = params;
 
     let src = src.cast::<f32>();
     let dst = dst.cast_mut::<f32>();
@@ -91,30 +97,62 @@ pub(crate) fn rope(
 
             // i1
             for row in 0..src_tensor.rows() {
-                for col in (0..src_tensor.cols()).step_by(2) {
-                    let theta = theta_0 * freq_base.powf(inv_ndims * col as f32);
-                    let cos_theta = theta.cos();
-                    let sin_theta = theta.sin();
+                if mode & 2 == 1 {
+                    for col in (0..src_tensor.cols()).step_by(2) {
+                        let theta = theta_0 * freq_base.powf(inv_ndims * col as f32);
+                        let cos_theta = theta.cos();
+                        let sin_theta = theta.sin();
 
-                    let src_offs = batch * src_tensor.batch_stride()
-                        + depth * src_tensor.depth_stride()
-                        + row * src_tensor.row_stride()
-                        + col * src_tensor.col_stride();
+                        let src_offs = batch * src_tensor.batch_stride()
+                            + depth * src_tensor.depth_stride()
+                            + row * src_tensor.row_stride()
+                            + col * src_tensor.col_stride();
 
-                    let src_offs = src_offs / 4;
+                        let src_offs = src_offs / 4;
 
-                    let dst_offs = batch * dst_tensor.batch_stride()
-                        + depth * dst_tensor.depth_stride()
-                        + row * dst_tensor.row_stride()
-                        + col * dst_tensor.col_stride();
+                        let dst_offs = batch * dst_tensor.batch_stride()
+                            + depth * dst_tensor.depth_stride()
+                            + row * dst_tensor.row_stride()
+                            + col * dst_tensor.col_stride();
 
-                    let dst_offs = dst_offs / 4;
+                        let dst_offs = dst_offs / 4;
 
-                    let x0 = src[src_offs];
-                    let x1 = src[src_offs + 1];
+                        let x0 = src[src_offs];
+                        let x1 = src[src_offs + 1];
 
-                    dst[dst_offs] = x0 * cos_theta - x1 * sin_theta;
-                    dst[dst_offs + 1] = x0 * sin_theta + x1 * cos_theta;
+                        dst[dst_offs] = x0 * cos_theta - x1 * sin_theta;
+                        dst[dst_offs + 1] = x0 * sin_theta + x1 * cos_theta;
+                    }
+                } else {
+                    for ib in 0..src_tensor.cols() as i32 / n_dims {
+                        for ic in (0..n_dims as i32).step_by(2) {
+                            let theta = theta_0 * freq_base.powi(inv_ndims as i32 * ic - ib as i32);
+                            let cos_theta = theta.cos();
+                            let sin_theta = theta.sin();
+
+                            let col = ib * n_dims + ic / 2;
+
+                            let src_offs = batch * src_tensor.batch_stride()
+                                + depth * src_tensor.depth_stride()
+                                + row * src_tensor.row_stride()
+                                + col as usize * src_tensor.col_stride();
+
+                            let src_offs = src_offs / 4;
+
+                            let dst_offs = batch * dst_tensor.batch_stride()
+                                + depth * dst_tensor.depth_stride()
+                                + row * dst_tensor.row_stride()
+                                + col as usize * dst_tensor.col_stride();
+
+                            let dst_offs = dst_offs / 4;
+
+                            let x0 = src[src_offs];
+                            let x1 = src[src_offs + n_dims as usize / 2];
+
+                            dst[dst_offs] = x0 * cos_theta - x1 * sin_theta;
+                            dst[dst_offs + n_dims as usize / 2] = x0 * sin_theta + x1 * cos_theta;
+                        }
+                    }
                 }
             }
         }
@@ -289,7 +327,14 @@ mod tests {
         fn run(mut backend: impl Backend) -> anyhow::Result<Vec<f32>> {
             let mut tb = TensorBuilder::prealloc(128 * 1024 * 1024)?;
 
-            let src1_t = tb.new_tensor(D3 { depth: 2, cols: 4, rows: 4 }.with_type(Type::F32))?;
+            let src1_t = tb.new_tensor(
+                D3 {
+                    depth: 2,
+                    cols: 4,
+                    rows: 4,
+                }
+                .with_type(Type::F32),
+            )?;
             let src1 = (0..32).map(|x| x as f32).collect::<Vec<_>>();
 
             tb.copy_data_from::<f32>(src1_t, &src1);
