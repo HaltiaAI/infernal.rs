@@ -64,9 +64,7 @@ mod tests {
         let rms = tb.rms_norm(input, 1.0)?;
 
         let (ctx, _) = tb.finish(&mut backend)?;
-        let mut graph = ComputeGraph::default();
-        graph.expand_forward(rms, &ctx)?;
-        graph.find_exec_plan(backend.mem_limit(), &ctx)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), rms, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
 
         let result = ctx[rms].elements::<f32>(&backend);
@@ -93,9 +91,7 @@ mod tests {
 
         let (ctx, _) = tb.finish(&mut backend)?;
 
-        let mut graph = ComputeGraph::default();
-        graph.expand_forward(rms, &ctx)?;
-        graph.find_exec_plan(backend.mem_limit(), &ctx)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), rms, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
 
         let result = ctx[rms].elements::<f32>(&backend);

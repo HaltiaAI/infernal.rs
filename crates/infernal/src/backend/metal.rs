@@ -372,8 +372,8 @@ impl Metal {
                 );
                 let [buf_a, buf_b, buf_dst] = self.page_cache.get3(a, b, dst)?;
 
-                let dst = (dst, buf_dst).into();
-                let src = [(a, buf_a).into(), (b, buf_b).into()];
+                let dst = (dst, &*buf_dst).into();
+                let src = [(a, &*buf_a).into(), (b, &*buf_b).into()];
 
                 let encoder = &exec.encoder;
                 use BinaryOp::*;
