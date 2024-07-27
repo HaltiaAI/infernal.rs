@@ -3,12 +3,13 @@ use std::borrow::Cow;
 use crate::{
     alloc::{Oom, ReadWriteAlloc},
     op::{Op, UnaryOp},
-    Layout, TensorBuilder, TensorId, TensorSrc, Type,
+    Layout, TensorBuilder, TensorId, TensorSrc, Type, builder::TensorOptions, layout::D1, builder::TensorOptionsExt
 };
 
 impl<A: ReadWriteAlloc, S: TensorSrc> TensorBuilder<A, S>
 where
     A::Arg: for<'a> From<&'a Layout>,
+    A::Arg: for<'a> From<&'a TensorOptions>,
 {
     pub fn quantize_cpu(&mut self, src_id: TensorId, quant: Type) -> Result<TensorId, Oom> {
         let src = &self[src_id];
@@ -78,5 +79,17 @@ where
         );
 
         Ok(res_id)
+    }
+
+    pub fn diffsq(&mut self, a: TensorId, b: TensorId) -> Result<TensorId, Oom> {
+        let mul = self.new_tensor(D1 { cols: self[a].cols() }.with_type(Type::F32))?;
+        self.fill_1d_f32(mul, -1.0f32);
+        let inv_input = self.mul(a, mul)?;
+        let diff = self.add(b, inv_input)?;
+
+        // Square differences
+        let diffsq = self.mul(diff, diff)?;
+
+        Ok(diffsq)
     }
 }

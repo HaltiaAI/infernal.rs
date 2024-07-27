@@ -12,6 +12,7 @@ use crate::{
     op::{BinaryOp, UnaryOp},
     BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc, Type,
 };
+use gguf::k_quant::{BlockQ3_K, BlockQ6_K};
 
 mod add;
 mod copy;
@@ -164,7 +165,10 @@ impl Cpu {
 
                         match a.typ() {
                             Type::Q6_K => {
-                                dequantize_q6k(dst, buf_a, buf_dst);
+                                dequantize::<BlockQ6_K, _>(dst, buf_a, buf_dst, dequantize_blk_q6_k);
+                            }
+                            Type::Q3_K => {
+                                dequantize::<BlockQ3_K, _>(dst, buf_a, buf_dst, dequantize_blk_q3_k);
                             }
                             _ => todo!(),
                         }

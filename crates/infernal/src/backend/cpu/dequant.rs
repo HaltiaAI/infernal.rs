@@ -17,11 +17,10 @@ unsafe fn f16_to_f32(i: u16) -> f32 {
 }
 
 /// Dequantize a q3_k block.
-fn dequantize_blk_q3_k(block: &BlockQ3_K, k: usize) -> Vec<f32> {
+pub(super) fn dequantize_blk_q3_k(block: &BlockQ3_K, dst: &mut [f32]) {
     let kmask1: u32 = 0b0011_0000_0011_0000_0011_0000_0011;
     let kmask2: u32 = 0b1111_0000_1111_0000_1111_0000_1111;
 
-    let mut out = vec![0.0f32; k];
     let mut aux: [u32; 4] = [0; 4];
     let scales: [u32; 3] = unsafe { core::mem::transmute(block.scales.clone()) };
     aux[..3].copy_from_slice(&scales);
@@ -49,12 +48,11 @@ fn dequantize_blk_q3_k(block: &BlockQ3_K, k: usize) -> Vec<f32> {
         .flat_map(|local_scale| iter::repeat(block_scale * (local_scale - 32) as f32).take(16));
 
     let mut dst_idx = 0;
+    let mut hi_mask = 1;
 
     // We iterate over quantized weights in chunks of 32 elements
     for (block_idx, quants) in block.qs.chunks_exact(32).enumerate() {
         for shift in 0..4 {
-            let hi_mask = 1 << (shift * block_idx);
-
             // Every chunk of 16 weights is scaled by one, shared, scale factor
             // For the sake of code readability and simplicity as a reference implementation
             // we repeat each scale factor and zip it with the quant table.
@@ -74,14 +72,14 @@ fn dequantize_blk_q3_k(block: &BlockQ3_K, k: usize) -> Vec<f32> {
                 let weight = ((quant_lo >> (shift << 1)) & 3) as i8 - offset;
 
                 // 4-bit quantized weight is scaled back to an f32 using the block scale factor
-                out[dst_idx] = scale_fac * weight as f32;
+                dst[dst_idx] = scale_fac * weight as f32;
 
                 dst_idx += 1;
             }
+
+            hi_mask <<= 1;
         }
     }
-
-    out
 }
 
 /// Dequantizes a Q6_K quantized block. Arguably a very easy dequantization scheme because you can
@@ -91,7 +89,7 @@ fn dequantize_blk_q3_k(block: &BlockQ3_K, k: usize) -> Vec<f32> {
 /// The quantization scheme uses one master scale to scale the scales for each quantized weight.
 /// The master scale is shared across the whole block, while the local scales are used to scale 4
 /// weights.
-fn dequantize_blk_q6_k(block: &BlockQ6_K, dst: &mut [f32]) {
+pub(super) fn dequantize_blk_q6_k(block: &BlockQ6_K, dst: &mut [f32]) {
     let ql = &block.ql;
     let qh = &block.qh;
     let sc = &block.scales;
@@ -139,12 +137,15 @@ fn dequantize_blk_q6_k(block: &BlockQ6_K, dst: &mut [f32]) {
     }
 }
 
-pub fn dequantize_q6k(dst_tensor: &Tensor, src: &[u8], dst: &mut [u8]) {
+pub fn dequantize<'a, B, F>(dst_tensor: &Tensor, src: &[u8], dst: &'a mut [u8], dequantize_fn: F)
+where
+    for<'b> F: Fn(&'b B, &'b mut [f32])
+{
     debug_assert_eq!(dst_tensor.total_elems() % BLK, 0);
     let dst = dst.cast_mut::<f32>();
 
     let blocks = dst_tensor.total_elems() / BLK;
-    let blocks = unsafe { std::slice::from_raw_parts(src.as_ptr() as *const BlockQ6_K, blocks) };
+    let blocks = unsafe { std::slice::from_raw_parts(src.as_ptr() as *const B, blocks) };
 
     let mut block_iter = blocks.chunks_exact(dst_tensor.cols() / BLK);
 
@@ -158,14 +159,14 @@ pub fn dequantize_q6k(dst_tensor: &Tensor, src: &[u8], dst: &mut [u8]) {
             .next()
             .expect("Expected block, but there are none left to be consumed");
 
-        // For Q6_K a block contains 256 elements.
+        // A block always contains 256 elements.
         for (block_idx, block) in blocks.iter().enumerate() {
             let dst_offs = block_idx * 256;
             let dst_end = dst_offs + 256;
 
             let dst = &mut row_data[dst_offs..dst_end];
 
-            dequantize_blk_q6_k(block, dst);
+            dequantize_fn(block, dst);
         }
     }
 }
@@ -184,8 +185,9 @@ mod tests {
     #[test]
     fn dequant_q3k() -> anyhow::Result<()> {
         // 1 quant block is 256 elements, so make sure to test at least 2 blocks.
-        let layout = Layout::new_2d(1, 256, Type::F32);
+        let layout = Layout::new_2d(2, 512, Type::F32);
         let mut backend = Cpu::new();
+        // let mut backend = Metal::new()?;
 
         let mut tb = TensorBuilder::prealloc(1024 * 1024)?.with_name("add_even");
         let x = tb.new_tensor(layout)?;
@@ -195,29 +197,36 @@ mod tests {
             current
         });
 
-        let x = tb.quantize_cpu(x, Type::Q3_K)?;
+        let quant = tb.quantize_cpu(x, Type::Q3_K)?;
+        let dequant = tb.dequantize_cpu(quant)?;
+
+        // Dequant against gpu
+        // make sure to uncomment the right backend
+        /*
+        let rows = tb.new_tensor(D1 { cols: 2 }.with_type(Type::I32))?;
+        tb.copy_data_from(rows, &[0, 1]);
+        let dequant = tb.get_rows(quant, rows)?;
+        */
+
+        // Square differences
+        let diffsq = tb.diffsq(x, dequant)?;
 
         let (ctx, _) = tb.finish(&mut backend)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), diffsq, &ctx)?;
+        backend.compute_graph(&graph, &ctx)?;
 
-        let res = &ctx[x];
+        //dbg!(ctx[dequant].elements::<f32>(&backend));
 
-        let buffer = backend.get_tensor_buf(res)?.borrow();
-        let data = buffer.tensor_data(res);
-        println!("{}", data.len());
+        let rms = ctx[diffsq].clone();
+        let count = rms.total_elems();
 
-        let buf: [u8; 110] = data.try_into()?;
+        let sum = rms.elements::<f32>(&backend).iter().sum::<f32>();
 
-        // NOTE: Buf might be improperly aligned??
-        let block = unsafe { core::mem::transmute::<[u8; 110], BlockQ3_K>(buf) };
+        // CPU:   61.621677
+        // Metal: 61.78904
+        let error = sum / count as f32;
 
-        let els = super::dequantize_blk_q3_k(&block, 256);
-
-        println!("{}", els.len());
-        println!("{:?}", els);
-
-        println!("max: {}", current);
-
-        panic!();
+        assert_relative_eq!(error, 61.78904, max_relative = 0.01);
 
         Ok(())
     }
@@ -226,8 +235,8 @@ mod tests {
     fn dequant_q6k() -> anyhow::Result<()> {
         // 1 quant block is 256 elements, so make sure to test at least 2 blocks.
         let layout = Layout::new_2d(2, 512, Type::F32);
-        // let mut backend = Metal::new()?;
         let mut backend = Cpu::new();
+        // let mut backend = Metal::new()?;
 
         let input = (0..1024).map(|x| x as f32).collect::<Vec<_>>();
 
@@ -247,14 +256,8 @@ mod tests {
         let dequant = tb.get_rows(quant, rows)?;
         */
 
-        // Simulate tensor sub op
-        let mul = tb.new_tensor(D1 { cols: 512 }.with_type(Type::F32))?;
-        tb.fill_1d_f32(mul, -1.0f32);
-        let inv_input = tb.mul(x, mul)?;
-        let diff = tb.add(dequant, inv_input)?;
-
         // Square differences
-        let diffsq = tb.mul(diff, diff)?;
+        let diffsq = tb.diffsq(x, dequant)?;
 
         let (ctx, _) = tb.finish(&mut backend)?;
         let graph = ComputeGraph::forward_expand(backend.mem_limit(), diffsq, &ctx)?;
