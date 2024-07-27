@@ -22,6 +22,7 @@ pub mod builder;
 pub mod graph;
 pub mod layout;
 pub mod op;
+pub mod quant;
 pub mod tensor;
 #[cfg(test)]
 pub(crate) mod test_utils;

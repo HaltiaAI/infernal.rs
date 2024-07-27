@@ -336,4 +336,8 @@ impl Tensor {
         }
         Ok(())
     }
+
+    pub(crate) fn loc(&self) -> MemoryLocation {
+        self.loc
+    }
 }

@@ -25,6 +25,7 @@ smallvec.workspace = true
 strum.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
+llama_cpp_sys.workspace = true
 
 # graph-inspect
 blake3.workspace = true

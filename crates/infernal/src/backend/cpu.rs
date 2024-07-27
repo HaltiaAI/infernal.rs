@@ -1,6 +1,7 @@
 use self::{
-    add::add, copy::copy, diag_mask_inf::diag_mask_inf, get_rows::get_rows, matmul::matmul,
-    mul::mul, relu::relu, rmsnorm::rms_norm, scale::scale, silu::silu, softmax::softmax,
+    add::add, copy::copy, dequant::*, diag_mask_inf::diag_mask_inf, get_rows::get_rows,
+    matmul::matmul, mul::mul, relu::relu, rmsnorm::rms_norm, scale::scale, silu::silu,
+    softmax::softmax,
 };
 use super::{
     paging,
@@ -9,11 +10,12 @@ use super::{
 };
 use crate::{
     op::{BinaryOp, UnaryOp},
-    BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc,
+    BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc, Type,
 };
 
 mod add;
 mod copy;
+mod dequant;
 mod diag_mask_inf;
 mod get_rows;
 mod matmul;
@@ -156,6 +158,16 @@ impl Cpu {
                     }
                     UnaryOp::DiagMaskInf { n_past } => {
                         diag_mask_inf(a, buf_a, buf_dst, n_past);
+                    }
+                    UnaryOp::Dequant => {
+                        assert!(dst.typ() == Type::F32);
+
+                        match a.typ() {
+                            Type::Q6_K => {
+                                dequantize_q6k(dst, buf_a, buf_dst);
+                            }
+                            _ => todo!(),
+                        }
                     }
                     _ => todo!(),
                 }

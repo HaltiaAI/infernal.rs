@@ -355,6 +355,10 @@ impl Metal {
                         trace!("relu");
                         kernel::Relu::new(self, dst, src).encode(encoder);
                     }
+                    Dequant => {
+                        trace!("dequant");
+                        // TODO: Metal dequant
+                    }
                 }
             }
             Op::Binary { op, a, b } => {
