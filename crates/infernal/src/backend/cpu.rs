@@ -12,7 +12,7 @@ use crate::{
     op::{BinaryOp, UnaryOp},
     BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc, Type,
 };
-use gguf::k_quant::{BlockQ3_K, BlockQ6_K};
+use gguf::k_quant::{BlockQ3_K, BlockQ4_K, BlockQ5_K, BlockQ6_K};
 
 mod add;
 mod copy;
@@ -165,10 +165,36 @@ impl Cpu {
 
                         match a.typ() {
                             Type::Q6_K => {
-                                dequantize::<BlockQ6_K, _>(dst, buf_a, buf_dst, dequantize_blk_q6_k);
+                                dequantize::<BlockQ6_K, _>(
+                                    dst,
+                                    buf_a,
+                                    buf_dst,
+                                    dequantize_blk_q6_k,
+                                );
+                            }
+                            Type::Q5_K => {
+                                dequantize::<BlockQ5_K, _>(
+                                    dst,
+                                    buf_a,
+                                    buf_dst,
+                                    dequantize_blk_q5_k,
+                                );
+                            }
+                            Type::Q4_K => {
+                                dequantize::<BlockQ4_K, _>(
+                                    dst,
+                                    buf_a,
+                                    buf_dst,
+                                    dequantize_blk_q4_k,
+                                );
                             }
                             Type::Q3_K => {
-                                dequantize::<BlockQ3_K, _>(dst, buf_a, buf_dst, dequantize_blk_q3_k);
+                                dequantize::<BlockQ3_K, _>(
+                                    dst,
+                                    buf_a,
+                                    buf_dst,
+                                    dequantize_blk_q3_k,
+                                );
                             }
                             _ => todo!(),
                         }

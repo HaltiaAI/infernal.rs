@@ -1,5 +1,5 @@
 use crate::{buf::SliceCast, Tensor};
-use gguf::k_quant::{BlockQ3_K, BlockQ6_K, BLK};
+use gguf::k_quant::{BlockQ3_K, BlockQ4_K, BlockQ5_K, BlockQ6_K, BLK};
 use std::{arch::asm, iter};
 
 #[inline]
@@ -51,7 +51,7 @@ pub(super) fn dequantize_blk_q3_k(block: &BlockQ3_K, dst: &mut [f32]) {
     let mut hi_mask = 1;
 
     // We iterate over quantized weights in chunks of 32 elements
-    for (block_idx, quants) in block.qs.chunks_exact(32).enumerate() {
+    for quants in block.qs.chunks_exact(32) {
         for shift in 0..4 {
             // Every chunk of 16 weights is scaled by one, shared, scale factor
             // For the sake of code readability and simplicity as a reference implementation
@@ -79,6 +79,86 @@ pub(super) fn dequantize_blk_q3_k(block: &BlockQ3_K, dst: &mut [f32]) {
 
             hi_mask <<= 1;
         }
+    }
+}
+
+#[inline]
+fn get_scale(j: usize, scales: &[u8]) -> (f32, f32) {
+    if j < 4 {
+        let d = scales[j] & 63;
+        let m = scales[j + 4] & 63;
+
+        (d as f32, m as f32)
+    } else {
+        let d = (scales[j + 4] & 0xf) | ((scales[j - 4] >> 6) << 4);
+        let m = (scales[j + 4] >> 4) | ((scales[j] >> 6) << 4);
+
+        (d as f32, m as f32)
+    }
+}
+
+pub(super) fn dequantize_blk_q4_k(block: &BlockQ4_K, dst: &mut [f32]) {
+    let global_scale = unsafe { f16_to_f32(block.d) };
+    let scale_min = unsafe { f16_to_f32(block.dmin) };
+
+    let mut q_offs = 0;
+    let mut dst_offs = 0;
+
+    for batch in 0..(BLK / 64) {
+        let scale_offs = batch * 2;
+        let (scale1, m1) = get_scale(scale_offs as usize, &block.scales);
+        let (scale2, m2) = get_scale(scale_offs as usize + 1, &block.scales);
+
+        let d1 = scale1 * global_scale;
+        let d2 = scale2 * global_scale;
+
+        let m1 = m1 * scale_min;
+        let m2 = m2 * scale_min;
+
+        for l in 0..32 {
+            dst[dst_offs + l] = d1 * (block.qs[q_offs + l] & 0xf) as f32 - m1;
+            dst[dst_offs + l + 32] = d2 * (block.qs[q_offs + l] >> 4) as f32 - m2;
+        }
+
+        q_offs += 32;
+        dst_offs += 64;
+    }
+}
+
+pub(super) fn dequantize_blk_q5_k(block: &BlockQ5_K, dst: &mut [f32]) {
+    let global_scale = unsafe { f16_to_f32(block.d) };
+    let scale_min = unsafe { f16_to_f32(block.dmin) };
+
+    let mut q_offs = 0;
+    let mut dst_offs = 0;
+    let mut u1 = 1u8;
+    let mut u2 = 2u8;
+
+    for batch in 0..(BLK / 64) {
+        let scale_offs = batch * 2;
+        let (scale1, m1) = get_scale(scale_offs as usize, &block.scales);
+        let (scale2, m2) = get_scale(scale_offs as usize + 1, &block.scales);
+
+        let d1 = scale1 * global_scale;
+        let d2 = scale2 * global_scale;
+
+        let m1 = m1 * scale_min;
+        let m2 = m2 * scale_min;
+
+        for l in 0..32 {
+            let high_bit_offs = if block.qh[l] & u1 != 0 { 16. } else { 0. };
+
+            dst[dst_offs + l] = d1 * ((block.qs[q_offs + l] & 0xF) as f32 + high_bit_offs) - m1;
+
+            let high_bit_offs = if block.qh[l] & u2 != 0 { 16. } else { 0. };
+
+            dst[dst_offs + l + 32] = d2 * ((block.qs[q_offs + l] >> 4) as f32 + high_bit_offs) - m2;
+        }
+
+        dst_offs += 64;
+        q_offs += 32;
+        u1 <<= 2;
+        u2 <<= 2;
     }
 }
 
@@ -139,7 +219,7 @@ pub(super) fn dequantize_blk_q6_k(block: &BlockQ6_K, dst: &mut [f32]) {
 
 pub fn dequantize<'a, B, F>(dst_tensor: &Tensor, src: &[u8], dst: &'a mut [u8], dequantize_fn: F)
 where
-    for<'b> F: Fn(&'b B, &'b mut [f32])
+    for<'b> F: Fn(&'b B, &'b mut [f32]),
 {
     debug_assert_eq!(dst_tensor.total_elems() % BLK, 0);
     let dst = dst.cast_mut::<f32>();
@@ -180,7 +260,6 @@ mod tests {
         Backend, ComputeGraph, Layout, TensorBuilder, Type,
     };
     use approx::*;
-    use gguf::k_quant::*;
 
     #[test]
     fn dequant_q3k() -> anyhow::Result<()> {
@@ -227,6 +306,104 @@ mod tests {
         let error = sum / count as f32;
 
         assert_relative_eq!(error, 61.78904, max_relative = 0.01);
+
+        Ok(())
+    }
+
+    #[test]
+    fn dequant_q4k() -> anyhow::Result<()> {
+        // 1 quant block is 256 elements, so make sure to test at least 2 blocks.
+        let layout = Layout::new_2d(2, 512, Type::F32);
+        let mut backend = Cpu::new();
+        // let mut backend = Metal::new()?;
+
+        let mut tb = TensorBuilder::prealloc(1024 * 1024)?.with_name("add_even");
+        let x = tb.new_tensor(layout)?;
+        let mut current = 0.0f32;
+        tb.fill_with(x, || {
+            current += 1.;
+            current
+        });
+
+        let quant = tb.quantize_cpu(x, Type::Q4_K)?;
+        let dequant = tb.dequantize_cpu(quant)?;
+
+        // Dequant against gpu
+        // make sure to uncomment the right backend
+        /*
+        let rows = tb.new_tensor(D1 { cols: 2 }.with_type(Type::I32))?;
+        tb.copy_data_from(rows, &[0, 1]);
+        let dequant = tb.get_rows(quant, rows)?;
+        */
+
+        // Square differences
+        let diffsq = tb.diffsq(x, dequant)?;
+
+        let (ctx, _) = tb.finish(&mut backend)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), diffsq, &ctx)?;
+        backend.compute_graph(&graph, &ctx)?;
+
+        // dbg!(ctx[dequant].elements::<f32>(&backend));
+
+        let rms = ctx[diffsq].clone();
+        let count = rms.total_elems();
+
+        let sum = rms.elements::<f32>(&backend).iter().sum::<f32>();
+
+        // CPU:   61.527101
+        // Metal: 61.52101
+        let error = sum / count as f32;
+
+        assert_relative_eq!(error, 61.52101, max_relative = 0.01);
+
+        Ok(())
+    }
+
+    #[test]
+    fn dequant_q5k() -> anyhow::Result<()> {
+        // 1 quant block is 256 elements, so make sure to test at least 2 blocks.
+        let layout = Layout::new_2d(2, 512, Type::F32);
+        let mut backend = Cpu::new();
+        // let mut backend = Metal::new()?;
+
+        let mut tb = TensorBuilder::prealloc(1024 * 1024)?.with_name("add_even");
+        let x = tb.new_tensor(layout)?;
+        let mut current = 0.0f32;
+        tb.fill_with(x, || {
+            current += 1.;
+            current
+        });
+
+        let quant = tb.quantize_cpu(x, Type::Q5_K)?;
+        let dequant = tb.dequantize_cpu(quant)?;
+
+        // Dequant against gpu
+        // make sure to uncomment the right backend
+        /*
+        let rows = tb.new_tensor(D1 { cols: 2 }.with_type(Type::I32))?;
+        tb.copy_data_from(rows, &[0, 1]);
+        let dequant = tb.get_rows(quant, rows)?;
+        */
+
+        // Square differences
+        let diffsq = tb.diffsq(x, dequant)?;
+
+        let (ctx, _) = tb.finish(&mut backend)?;
+        let graph = ComputeGraph::forward_expand(backend.mem_limit(), diffsq, &ctx)?;
+        backend.compute_graph(&graph, &ctx)?;
+
+        // dbg!(ctx[dequant].elements::<f32>(&backend));
+
+        let rms = ctx[diffsq].clone();
+        let count = rms.total_elems();
+
+        let sum = rms.elements::<f32>(&backend).iter().sum::<f32>();
+
+        // CPU:   28.865108
+        // Metal: 28.86510
+        let error = sum / count as f32;
+
+        assert_relative_eq!(error, 28.865108, max_relative = 0.01);
 
         Ok(())
     }

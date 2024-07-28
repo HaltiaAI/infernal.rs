@@ -2,8 +2,10 @@ use std::borrow::Cow;
 
 use crate::{
     alloc::{Oom, ReadWriteAlloc},
+    builder::{TensorOptions, TensorOptionsExt},
+    layout::D1,
     op::{Op, UnaryOp},
-    Layout, TensorBuilder, TensorId, TensorSrc, Type, builder::TensorOptions, layout::D1, builder::TensorOptionsExt
+    Layout, TensorBuilder, TensorId, TensorSrc, Type,
 };
 
 impl<A: ReadWriteAlloc, S: TensorSrc> TensorBuilder<A, S>
@@ -82,7 +84,12 @@ where
     }
 
     pub fn diffsq(&mut self, a: TensorId, b: TensorId) -> Result<TensorId, Oom> {
-        let mul = self.new_tensor(D1 { cols: self[a].cols() }.with_type(Type::F32))?;
+        let mul = self.new_tensor(
+            D1 {
+                cols: self[a].cols(),
+            }
+            .with_type(Type::F32),
+        )?;
         self.fill_1d_f32(mul, -1.0f32);
         let inv_input = self.mul(a, mul)?;
         let diff = self.add(b, inv_input)?;
