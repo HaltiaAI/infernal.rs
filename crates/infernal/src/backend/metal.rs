@@ -356,8 +356,8 @@ impl Metal {
                         kernel::Relu::new(self, dst, src).encode(encoder);
                     }
                     Dequant => {
-                        trace!("dequant");
                         // TODO: Metal dequant
+                        unimplemented!("Metal backend does not yet support explicit, full tensor dequantization.");
                     }
                 }
             }

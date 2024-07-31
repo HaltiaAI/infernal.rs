@@ -2,22 +2,42 @@ use crate::{buf::SliceCast, Tensor};
 use gguf::k_quant::{BlockQ3_K, BlockQ4_K, BlockQ5_K, BlockQ6_K, BLK};
 use std::{arch::asm, iter};
 
-#[inline]
-unsafe fn f16_to_f32(i: u16) -> f32 {
-    let result: f32;
+pub fn dequantize<'a, B, F>(dst_tensor: &Tensor, src: &[u8], dst: &'a mut [u8], dequantize_fn: F)
+where
+    for<'b> F: Fn(&'b B, &'b mut [f32]),
+{
+    debug_assert_eq!(dst_tensor.total_elems() % BLK, 0);
+    let dst = dst.cast_mut::<f32>();
 
-    asm!(
-        "fcvt {0:s}, {1:h}",
-        out(vreg) result,
-        in(vreg) i,
-        options(pure, nomem, nostack, preserves_flags)
-    );
+    let blocks = dst_tensor.total_elems() / BLK;
+    let blocks = unsafe { std::slice::from_raw_parts(src.as_ptr() as *const B, blocks) };
 
-    result
+    let mut block_iter = blocks.chunks_exact(dst_tensor.cols() / BLK);
+
+    for row in 0..dst_tensor.rows() {
+        let row_offs = row * dst_tensor.cols();
+        let row_end = row_offs + dst_tensor.cols();
+
+        let row_data = &mut dst[row_offs..row_end];
+
+        let blocks = block_iter
+            .next()
+            .expect("Expected block, but there are none left to be consumed");
+
+        // A block always contains 256 elements.
+        for (block_idx, block) in blocks.iter().enumerate() {
+            let dst_offs = block_idx * 256;
+            let dst_end = dst_offs + 256;
+
+            let dst = &mut row_data[dst_offs..dst_end];
+
+            dequantize_fn(block, dst);
+        }
+    }
 }
 
 /// Dequantize a q3_k block.
-pub(super) fn dequantize_blk_q3_k(block: &BlockQ3_K, dst: &mut [f32]) {
+pub fn dequantize_blk_q3_k(block: &BlockQ3_K, dst: &mut [f32]) {
     let kmask1: u32 = 0b0011_0000_0011_0000_0011_0000_0011;
     let kmask2: u32 = 0b1111_0000_1111_0000_1111_0000_1111;
 
@@ -82,22 +102,7 @@ pub(super) fn dequantize_blk_q3_k(block: &BlockQ3_K, dst: &mut [f32]) {
     }
 }
 
-#[inline]
-fn get_scale(j: usize, scales: &[u8]) -> (f32, f32) {
-    if j < 4 {
-        let d = scales[j] & 63;
-        let m = scales[j + 4] & 63;
-
-        (d as f32, m as f32)
-    } else {
-        let d = (scales[j + 4] & 0xf) | ((scales[j - 4] >> 6) << 4);
-        let m = (scales[j + 4] >> 4) | ((scales[j] >> 6) << 4);
-
-        (d as f32, m as f32)
-    }
-}
-
-pub(super) fn dequantize_blk_q4_k(block: &BlockQ4_K, dst: &mut [f32]) {
+pub fn dequantize_blk_q4_k(block: &BlockQ4_K, dst: &mut [f32]) {
     let global_scale = unsafe { f16_to_f32(block.d) };
     let scale_min = unsafe { f16_to_f32(block.dmin) };
 
@@ -125,7 +130,7 @@ pub(super) fn dequantize_blk_q4_k(block: &BlockQ4_K, dst: &mut [f32]) {
     }
 }
 
-pub(super) fn dequantize_blk_q5_k(block: &BlockQ5_K, dst: &mut [f32]) {
+pub fn dequantize_blk_q5_k(block: &BlockQ5_K, dst: &mut [f32]) {
     let global_scale = unsafe { f16_to_f32(block.d) };
     let scale_min = unsafe { f16_to_f32(block.dmin) };
 
@@ -169,7 +174,7 @@ pub(super) fn dequantize_blk_q5_k(block: &BlockQ5_K, dst: &mut [f32]) {
 /// The quantization scheme uses one master scale to scale the scales for each quantized weight.
 /// The master scale is shared across the whole block, while the local scales are used to scale 4
 /// weights.
-pub(super) fn dequantize_blk_q6_k(block: &BlockQ6_K, dst: &mut [f32]) {
+pub fn dequantize_blk_q6_k(block: &BlockQ6_K, dst: &mut [f32]) {
     let ql = &block.ql;
     let qh = &block.qh;
     let sc = &block.scales;
@@ -217,37 +222,32 @@ pub(super) fn dequantize_blk_q6_k(block: &BlockQ6_K, dst: &mut [f32]) {
     }
 }
 
-pub fn dequantize<'a, B, F>(dst_tensor: &Tensor, src: &[u8], dst: &'a mut [u8], dequantize_fn: F)
-where
-    for<'b> F: Fn(&'b B, &'b mut [f32]),
-{
-    debug_assert_eq!(dst_tensor.total_elems() % BLK, 0);
-    let dst = dst.cast_mut::<f32>();
+#[inline]
+unsafe fn f16_to_f32(i: u16) -> f32 {
+    let result: f32;
 
-    let blocks = dst_tensor.total_elems() / BLK;
-    let blocks = unsafe { std::slice::from_raw_parts(src.as_ptr() as *const B, blocks) };
+    asm!(
+        "fcvt {0:s}, {1:h}",
+        out(vreg) result,
+        in(vreg) i,
+        options(pure, nomem, nostack, preserves_flags)
+    );
 
-    let mut block_iter = blocks.chunks_exact(dst_tensor.cols() / BLK);
+    result
+}
 
-    for row in 0..dst_tensor.rows() {
-        let row_offs = row * dst_tensor.cols();
-        let row_end = row_offs + dst_tensor.cols();
+#[inline]
+fn get_scale(j: usize, scales: &[u8]) -> (f32, f32) {
+    if j < 4 {
+        let d = scales[j] & 63;
+        let m = scales[j + 4] & 63;
 
-        let row_data = &mut dst[row_offs..row_end];
+        (d as f32, m as f32)
+    } else {
+        let d = (scales[j + 4] & 0xf) | ((scales[j - 4] >> 6) << 4);
+        let m = (scales[j + 4] >> 4) | ((scales[j] >> 6) << 4);
 
-        let blocks = block_iter
-            .next()
-            .expect("Expected block, but there are none left to be consumed");
-
-        // A block always contains 256 elements.
-        for (block_idx, block) in blocks.iter().enumerate() {
-            let dst_offs = block_idx * 256;
-            let dst_end = dst_offs + 256;
-
-            let dst = &mut row_data[dst_offs..dst_end];
-
-            dequantize_fn(block, dst);
-        }
+        (d as f32, m as f32)
     }
 }
 
@@ -294,7 +294,7 @@ mod tests {
         let graph = ComputeGraph::forward_expand(backend.mem_limit(), diffsq, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
 
-        //dbg!(ctx[dequant].elements::<f32>(&backend));
+        dbg!(ctx[dequant].elements::<f32>(&backend));
 
         let rms = ctx[diffsq].clone();
         let count = rms.total_elems();
@@ -343,7 +343,7 @@ mod tests {
         let graph = ComputeGraph::forward_expand(backend.mem_limit(), diffsq, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
 
-        // dbg!(ctx[dequant].elements::<f32>(&backend));
+        dbg!(ctx[dequant].elements::<f32>(&backend));
 
         let rms = ctx[diffsq].clone();
         let count = rms.total_elems();
@@ -392,7 +392,7 @@ mod tests {
         let graph = ComputeGraph::forward_expand(backend.mem_limit(), diffsq, &ctx)?;
         backend.compute_graph(&graph, &ctx)?;
 
-        // dbg!(ctx[dequant].elements::<f32>(&backend));
+        dbg!(ctx[dequant].elements::<f32>(&backend));
 
         let rms = ctx[diffsq].clone();
         let count = rms.total_elems();

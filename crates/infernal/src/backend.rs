@@ -13,6 +13,7 @@ use tracing::trace;
 
 use crate::{buf::Buf, BufId, ComputeGraph, Optimizer, Tensor, TensorNotFound, TensorSrc};
 
+pub use cpu::{dequant::*, Cpu};
 pub use metal::{Config, Metal};
 
 mod cpu;

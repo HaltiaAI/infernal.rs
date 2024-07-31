@@ -16,7 +16,7 @@ use gguf::k_quant::{BlockQ3_K, BlockQ4_K, BlockQ5_K, BlockQ6_K};
 
 mod add;
 mod copy;
-mod dequant;
+pub mod dequant;
 mod diag_mask_inf;
 mod get_rows;
 mod matmul;
