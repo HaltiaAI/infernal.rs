@@ -36,12 +36,22 @@ where
     }
 }
 
+pub fn dequantize_f16(src: &[u8], dst: &mut [u8]) {
+    let src = src.cast::<u16>();
+    let dst = dst.cast_mut::<f32>();
+
+    for (idx, element) in src.iter().enumerate() {
+        dst[idx] = unsafe { f16_to_f32(*element) };
+    }
+}
+
 /// Dequantize a q3_k block.
 pub fn dequantize_blk_q3_k(block: &BlockQ3_K, dst: &mut [f32]) {
     let kmask1: u32 = 0b0011_0000_0011_0000_0011_0000_0011;
     let kmask2: u32 = 0b1111_0000_1111_0000_1111_0000_1111;
 
     let mut aux: [u32; 4] = [0; 4];
+    // NB:  We have to clone the scales because the scales are not aligned
     let scales: [u32; 3] = unsafe { core::mem::transmute(block.scales.clone()) };
     aux[..3].copy_from_slice(&scales);
 

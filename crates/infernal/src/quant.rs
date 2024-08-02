@@ -4,7 +4,7 @@ use crate::{
     alloc::{Oom, ReadWriteAlloc},
     backend::{
         dequantize, dequantize_blk_q3_k, dequantize_blk_q4_k, dequantize_blk_q5_k,
-        dequantize_blk_q6_k,
+        dequantize_blk_q6_k, dequantize_f16
     },
     builder::{TensorOptions, TensorOptionsExt},
     layout::D1,
@@ -96,7 +96,7 @@ where
     /// The tensor must not be of type `F32`, `F16` or `I32`
     pub fn dequantize_cpu(&mut self, src_id: TensorId) -> Result<TensorId, Oom> {
         let src = &self[src_id];
-        assert!(!matches!(src.typ(), Type::F32 | Type::F16 | Type::I32));
+        assert!(!matches!(src.typ(), Type::F32 | Type::I32));
 
         let loc = src.loc();
 
@@ -136,6 +136,9 @@ where
         let dst_tensor = &self[dst_id];
 
         match self[src_id].typ() {
+            Type::F16 => {
+                dequantize_f16(src, dst);
+            }
             Type::Q6_K => {
                 dequantize::<BlockQ6_K, _>(dst_tensor, src, dst, dequantize_blk_q6_k);
             }

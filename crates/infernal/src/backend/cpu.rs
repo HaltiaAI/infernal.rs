@@ -164,6 +164,9 @@ impl Cpu {
                         assert!(dst.typ() == Type::F32);
 
                         match a.typ() {
+                            Type::F16 => {
+                                dequantize_f16(buf_a, buf_dst);
+                            }
                             Type::Q6_K => {
                                 dequantize::<BlockQ6_K, _>(
                                     dst,
