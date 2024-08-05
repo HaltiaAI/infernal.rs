@@ -225,6 +225,7 @@ pub enum UnaryOp {
     },
     Silu,
     Relu,
+    Dequant,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
@@ -294,6 +295,7 @@ impl fmt::Display for UnaryOp {
             Softmax { scale, .. } => write!(f, "softmax[{scale}]"),
             Silu => write!(f, "silu"),
             Relu => write!(f, "relu"),
+            Dequant => write!(f, "dequant"),
         }
     }
 }
@@ -882,6 +884,18 @@ where
                 a: a_id,
             },
             mode,
+        )
+    }
+
+    /// Method dequantizes a tensor to f32
+    pub fn dequant(&mut self, src: TensorId) -> Result<TensorId, Oom> {
+        self.new_op_based_on_tensor(
+            src,
+            Op::Unary {
+                a: src,
+                op: UnaryOp::Dequant,
+            },
+            Mode::Dup,
         )
     }
 

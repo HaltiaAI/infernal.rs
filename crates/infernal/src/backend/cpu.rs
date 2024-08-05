@@ -1,6 +1,7 @@
 use self::{
-    add::add, copy::copy, diag_mask_inf::diag_mask_inf, get_rows::get_rows, matmul::matmul,
-    mul::mul, relu::relu, rmsnorm::rms_norm, scale::scale, silu::silu, softmax::softmax,
+    add::add, copy::copy, dequant::*, diag_mask_inf::diag_mask_inf, get_rows::get_rows,
+    matmul::matmul, mul::mul, relu::relu, rmsnorm::rms_norm, scale::scale, silu::silu,
+    softmax::softmax,
 };
 use super::{
     paging,
@@ -9,11 +10,13 @@ use super::{
 };
 use crate::{
     op::{BinaryOp, UnaryOp},
-    BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc,
+    BufId, ComputeGraph, Op, Optimizer, Tensor, TensorSrc, Type,
 };
+use gguf::k_quant::{BlockQ3_K, BlockQ4_K, BlockQ5_K, BlockQ6_K};
 
 mod add;
 mod copy;
+pub mod dequant;
 mod diag_mask_inf;
 mod get_rows;
 mod matmul;
@@ -156,6 +159,48 @@ impl Cpu {
                     }
                     UnaryOp::DiagMaskInf { n_past } => {
                         diag_mask_inf(a, buf_a, buf_dst, n_past);
+                    }
+                    UnaryOp::Dequant => {
+                        assert!(dst.typ() == Type::F32);
+
+                        match a.typ() {
+                            Type::F16 => {
+                                dequantize_f16(buf_a, buf_dst);
+                            }
+                            Type::Q6_K => {
+                                dequantize::<BlockQ6_K, _>(
+                                    dst,
+                                    buf_a,
+                                    buf_dst,
+                                    dequantize_blk_q6_k,
+                                );
+                            }
+                            Type::Q5_K => {
+                                dequantize::<BlockQ5_K, _>(
+                                    dst,
+                                    buf_a,
+                                    buf_dst,
+                                    dequantize_blk_q5_k,
+                                );
+                            }
+                            Type::Q4_K => {
+                                dequantize::<BlockQ4_K, _>(
+                                    dst,
+                                    buf_a,
+                                    buf_dst,
+                                    dequantize_blk_q4_k,
+                                );
+                            }
+                            Type::Q3_K => {
+                                dequantize::<BlockQ3_K, _>(
+                                    dst,
+                                    buf_a,
+                                    buf_dst,
+                                    dequantize_blk_q3_k,
+                                );
+                            }
+                            _ => todo!(),
+                        }
                     }
                     _ => todo!(),
                 }

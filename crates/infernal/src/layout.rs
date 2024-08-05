@@ -17,6 +17,7 @@ pub enum Type {
     Q4_K,
     Q5_K,
     Q6_K,
+    Q8_K,
 }
 
 impl Type {
@@ -61,6 +62,7 @@ impl TryFrom<gguf::TensorType> for Type {
             gguf::TensorType::Q4_K => Self::Q4_K,
             gguf::TensorType::Q5_K => Self::Q5_K,
             gguf::TensorType::Q6_K => Self::Q6_K,
+            gguf::TensorType::Q8_K => Self::Q8_K,
             _ => return Err(UnsupportedGgufTensorType(t)),
         })
     }
@@ -78,6 +80,7 @@ impl From<Type> for gguf::TensorType {
             Type::Q4_K => Self::Q4_K,
             Type::Q5_K => Self::Q5_K,
             Type::Q6_K => Self::Q6_K,
+            Type::Q8_K => Self::Q8_K,
         }
     }
 }

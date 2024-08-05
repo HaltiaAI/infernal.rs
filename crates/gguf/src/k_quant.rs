@@ -3,6 +3,7 @@ pub const BLK: usize = 256;
 pub const K_SCALE_SIZE: usize = 12;
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct BlockQ2_K {
     pub scales: [u8; BLK / 16],
     pub qs: [u8; BLK / 4],
@@ -11,6 +12,7 @@ pub struct BlockQ2_K {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct BlockQ3_K {
     pub hmask: [u8; BLK / 8],
     pub qs: [u8; BLK / 4],
@@ -19,6 +21,7 @@ pub struct BlockQ3_K {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct BlockQ4_K {
     pub d: u16,
     pub dmin: u16,
@@ -27,6 +30,7 @@ pub struct BlockQ4_K {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct BlockQ5_K {
     pub d: u16,
     pub dmin: u16,
@@ -36,6 +40,7 @@ pub struct BlockQ5_K {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct BlockQ6_K {
     pub ql: [u8; BLK / 2],
     pub qh: [u8; BLK / 4],
@@ -44,6 +49,7 @@ pub struct BlockQ6_K {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct BlockQ8_K {
     pub d: f32,
     pub qs: [i8; BLK],
@@ -57,4 +63,5 @@ fn k_quant_tensor_type_sizes_match_ggml() {
     assert_eq!(crate::TensorType::Q4_K.size(), 144);
     assert_eq!(crate::TensorType::Q5_K.size(), 176);
     assert_eq!(crate::TensorType::Q6_K.size(), 210);
+    assert_eq!(crate::TensorType::Q8_K.size(), 292);
 }
